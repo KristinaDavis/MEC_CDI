@@ -113,12 +113,14 @@ def MEC_CDI():
         pt_sent = MECshm.IMAGE.md.lastaccesstime  # probe time sent
         cdi.save_tseries(out, n_cmd, pt_sent)
         n_cmd += 1
-
         while True:
             if (datetime.datetime.now() - pt_sent).seconds > cdi.time_probe_plus_null:
                 n_cycles += 1
                 break
     print(f'total time = {(pt_sent-pt_start).seconds}')
+
+    # Make sure shm is clear
+    MECshm.set_data(flat)
 
     # Saving Probe and timestamp together
     # ap = AppliedProbe(bp, probe, t_sent)
