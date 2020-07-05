@@ -113,7 +113,9 @@ def MEC_CDI():
         cdi.save_tseries(out, n_cmd, pt_sent)
         n_cmd += 1
         while True:
-            if (datetime.datetime.now() - pt_sent).seconds > cdi.time_probe_plus_null:
+            # print(f"n_cmd = {n_cmd} cdi full time {cdi.time_probe_plus_null}")
+            if (datetime.datetime.now() - pt_sent).seconds > cdi.null_time:
+                # print(f"{(datetime.datetime.now() - pt_sent).seconds}")
                 n_cycles += 1
                 break
     print(f'total time = {(pt_sent-pt_start).seconds}')
@@ -144,17 +146,17 @@ class CDI_params():
         self.verbose = False  # False , flag to plot phase probe or not
 
         # Probe Dimensions (extent in pupil plane coordinates)
-        self.probe_amp = 2e-6  # [m] probe amplitude, scale should be in units of actuator height limits
+        self.probe_amp = 0.150  # [um] probe amplitude, scale should be in units of actuator height limits
         self.probe_w = 10  # [actuator coordinates] width of the probe
         self.probe_h = 30  # [actuator coordinates] height of the probe
-        self.probe_shift = [0, 0]  # [actuator coordinates] center position of the probe (should move off-center to
+        self.probe_shift = [8, 8]  # [actuator coordinates] center position of the probe (should move off-center to
         # avoid coronagraph)
-        self.probe_spacing = 10  # distance from the focal plane center to edge of the rectangular probed region
+        self.probe_spacing = 6  # distance from the focal plane center to edge of the rectangular probed region
 
         # Phase Sequence of Probes
         self.phs_intervals = np.pi / 3  # [rad] phase interval over [0, 2pi]
-        self.phase_integration_time = 0.1  # [s]  How long in sec to apply each probe in the sequence
-        self.null_time = 1  # [s]  time between repeating probe cycles (data to be nulled using probe info)
+        self.phase_integration_time = 1  # [s]  How long in sec to apply each probe in the sequence
+        self.null_time = 3  # [s]  time between repeating probe cycles (data to be nulled using probe info)
         self.end_probes_after_time = 60  # [sec] probing repeats for x seconds until stopping
         self.end_probes_after_ncycles = 3  # [int] probe repeats until it has completed x full cycles
 
@@ -277,7 +279,7 @@ def config_probe(cdi, theta, nact):
     X,Y = np.meshgrid(x, y)
 
     probe = cdi.probe_amp * np.sinc(cdi.probe_w * X) * np.sinc(cdi.probe_h * Y) \
-            * np.sin(2*np.pi*cdi.probe_spacing*X + theta)
+            * np.sin(2*np.pi*cdi.probe_spacing*Y + theta)
 
     # Testing FF propagation
     if cdi.verbose:  # and theta == cdi.phase_series[0]
