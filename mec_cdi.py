@@ -94,7 +94,7 @@ def MEC_CDI():
     # Run Probe Cycles
     n_cycles = 0
     n_cmd = 0
-    while n_cycles <= cdi.end_probes_after_ncycles:
+    while n_cycles < cdi.end_probes_after_ncycles:
         olt = datetime.datetime.now()  # outer loop time
         for ip, theta in enumerate(cdi.phase_cycle):
             ilt = datetime.datetime.now()  # inner loop time
@@ -102,12 +102,11 @@ def MEC_CDI():
             MECshm.set_data(probe)  # Apply Probe
             pt_sent = MECshm.IMAGE.md.lastaccesstime      # probe time sent
             cdi.save_tseries(out, n_cmd, pt_sent)
-            print(f'ncmd={n_cmd}, last access time = {pt_sent}, ip={ip} ')
             n_cmd += 1
-
             while True:
                 if (datetime.datetime.now() - ilt).seconds > cdi.phase_integration_time:
                     break
+
         # Send flat and wait until next cycle begins
         MECshm.set_data(flat)  # effectively clearing SHM
         pt_sent = MECshm.IMAGE.md.lastaccesstime  # probe time sent
@@ -214,7 +213,7 @@ class CDI_params():
         cout.total_time = self.total_time
         cout.n_commands = (self.n_probes+1) * self.end_probes_after_ncycles + 1
         # print(f'{cout.n_commands} = cout.n_commands')
-        cout.probe_tseries = np.zeros((cout.n_commands,),  dtype='datetime64[s]')
+        cout.probe_tseries = np.zeros((cout.n_commands+1,),  dtype='datetime64[s]')
 
         return cout
 
