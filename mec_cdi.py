@@ -115,10 +115,10 @@ def MEC_CDI():
         n_cmd += 1
 
         while True:
-            if (time.time() + pt_sent.second) > cdi.time_probe_plus_null:
+            if (datetime.datetime.now() - pt_sent).seconds > cdi.time_probe_plus_null:
                 n_cycles += 1
                 break
-    print(f'total time = {pt_sent-pt_start}')
+    print(f'total time = {(pt_sent-pt_start).seconds}')
 
     # Saving Probe and timestamp together
     # ap = AppliedProbe(bp, probe, t_sent)
