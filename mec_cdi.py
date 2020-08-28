@@ -22,12 +22,14 @@ import time
 import datetime
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm, SymLogNorm
-import copy
+import pickle
+import os
+
 from pyMilk.interfacing.isio_shmlib import SHM
 
 
 ######################################################
-# Interfacing
+# Interfacing with SCExAO DM
 ######################################################
 class ShmParams():
     """
@@ -84,7 +86,7 @@ def MEC_CDI():
     # Initialize
     cdi = CDI_params()
     cdi.gen_phaseseries()
-    out = cdi.init_cout(data.shape[0])
+    out = cdi.init_out(data.shape[0])
 
     # Create Flat
     flat = np.zeros((data.shape[0], data.shape[1]), dtype=np.float32)
@@ -102,6 +104,8 @@ def MEC_CDI():
             MECshm.set_data(probe)  # Apply Probe
             pt_sent = MECshm.IMAGE.md.lastaccesstime      # probe time sent
             cdi.save_tseries(out, n_cmd, pt_sent)
+            if n_cmd <= cdi.n_probes:
+                cdi.save_probe(out, n_cmd, probe)
             n_cmd += 1
             while True:
                 if (datetime.datetime.now() - ilt).seconds > cdi.phase_integration_time:
@@ -111,6 +115,7 @@ def MEC_CDI():
         MECshm.set_data(flat)  # effectively clearing SHM
         pt_sent = MECshm.IMAGE.md.lastaccesstime  # probe time sent
         cdi.save_tseries(out, n_cmd, pt_sent)
+        cdi.save_probe(out, n_cmd, flat)
         n_cmd += 1
         while True:
             # print(f"n_cmd = {n_cmd} cdi full time {cdi.time_probe_plus_null}")
@@ -124,7 +129,7 @@ def MEC_CDI():
     MECshm.set_data(flat)
 
     # Saving Probe and timestamp together
-    # ap = AppliedProbe(bp, probe, t_sent)
+    cdi.save_out_to_disk(out, plot=True)
 
     return MECshm, out
 
@@ -155,7 +160,7 @@ class CDI_params():
 
         # Phase Sequence of Probes
         self.phs_intervals = np.pi / 3  # [rad] phase interval over [0, 2pi]
-        self.phase_integration_time = 1  # [s]  How long in sec to apply each probe in the sequence
+        self.phase_integration_time = 0.01  # [s]  How long in sec to apply each probe in the sequence
         self.null_time = 3  # [s]  time between repeating probe cycles (data to be nulled using probe info)
         self.end_probes_after_time = 60  # [sec] probing repeats for x seconds until stopping
         self.end_probes_after_ncycles = 3  # [int] probe repeats until it has completed x full cycles
@@ -200,7 +205,7 @@ class CDI_params():
 
         return self.phase_cycle
 
-    def init_cout(self, nact):
+    def init_out(self, nact):
         """
         Initialize a return structure to save probes and timeseries of commands sent
 
@@ -208,25 +213,45 @@ class CDI_params():
         DM_probe_series: [n_probes, n_act, n_act] series of applied DM probes, each with a different phase
 
         """
-        cout = CDIOut()
-        cout.phase_cycle = self.phase_cycle
-        cout.phase_integration_time = self.phase_integration_time
-        cout.DM_probe_series = np.zeros((self.n_probes, nact, nact))
-        cout.total_time = self.total_time
-        cout.n_commands = (self.n_probes+1) * self.end_probes_after_ncycles + 1
+        out = CDIOut()
+        # Probe Info
+        out.probe_amp = self.probe_amp
+        out.probe_w = self.probe_w
+        out.probe_h = self.probe_h
+        out.probe_shift = self.probe_shift
+        out.probe_spacing = self.probe_spacing
+
+        # Time Info
+        out.phase_cycle = self.phase_cycle
+        out.phase_integration_time = self.phase_integration_time
+        out.DM_probe_series = np.zeros((self.n_probes+1, nact, nact))
+        out.total_time = self.total_time
+        out.n_commands = (self.n_probes+1) * self.end_probes_after_ncycles + 1
         # print(f'{cout.n_commands} = cout.n_commands')
-        cout.probe_tseries = np.zeros((cout.n_commands+1,),  dtype='datetime64[s]')
+        out.probe_tseries = np.zeros((out.n_commands+1,),  dtype='datetime64[s]')
 
-        return cout
+        return out
 
-    def save_probe(self, cout, ix, probe):
-        cout.DM_probe_series[ix] = probe
+    def save_probe(self, out, ix, probe):
+        if ix <= self.n_probes:
+            out.DM_probe_series[ix] = probe
 
-    def save_tseries(self, cout, it, t):
-        cout.probe_tseries[it-1] = t
+    def save_tseries(self, out, it, t):
+        out.probe_tseries[it-1] = t
 
-    def save_cout_to_disk(self, cout, plot=False):
+    def save_out_to_disk(self, out, save_location='CDI_tseries', plot=False):
+        """
+        saves output structure data locally on disk as a pkl file
 
+        :param out: output structure
+        :param save_location: file name of saved .pkl data
+        :param plot: flag to generate plots
+        :return: nothing returned explicitly but data is saved to disk at save_location
+        """
+        #
+        with open(save_location, 'wb') as handle:
+            pickle.dump(out, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        handle.close()
 
         # Fig
         if plot:
@@ -246,9 +271,8 @@ class CDI_params():
 
             for ax, ix in zip(subplot.flatten(), range(self.n_probes)):
                 # im = ax.imshow(self.DM_probe_series[ix], interpolation='none', origin='lower')
-                im = ax.imshow(cout.probe_series[ix], interpolation='none', origin='lower')
-
-                ax.set_title(f"Probe " + r'$\theta$=' + f'{cout.DM_phase_series[ix]/np.pi:.2f}' + r'$\pi$')
+                im = ax.imshow(out.DM_probe_series[ix], interpolation='none', origin='lower')
+                ax.set_title(f"Probe " + r'$\theta$=' + f'{out.phase_cycle[ix]/np.pi:.2f}' + r'$\pi$')
 
             cb = fig.colorbar(im)  #
             cb.set_label('um')
@@ -325,70 +349,13 @@ def config_probe(cdi, theta, nact):
         plt.show()
 
     # Saving Probe in the series
-    # cdi.save_probe(ip, probe)
+    # cdi.save_probe(probe)
 
     return probe
 
 
-def cdi_postprocess(cdi, fp_seq, sampling, plot=False):
-    """
-    this is the function that accepts the timeseries of intensity images from the simuation and returns the processed
-    single image. This function calculates the speckle amplitude phase, and then corrects for it to create the dark
-    hole over the specified region of the image.
-
-    :param fp_seq: timestream of 2D images (intensity only) from the focal plane complex field
-    :param sampling: focal plane sampling
-    :return:
-    """
-    n_pairs = cdi.n_probes//2  # number of deltas (probe differentials)
-    n_nulls = sp.numframes - cdi.n_probes
-    delta = np.zeros((n_pairs, sp.grid_size, sp.grid_size), dtype=float)
-    absDeltaP = np.zeros((n_pairs, sp.grid_size, sp.grid_size), dtype=float)
-    phsDeltaP = np.zeros((n_pairs, sp.grid_size, sp.grid_size), dtype=float)
-    Epupil = np.zeros((n_nulls, sp.grid_size, sp.grid_size), dtype=float)
-
-    fp_seq = np.sum(fp_seq, axis=1)  # sum over wavelength
-
-    for ix in range(n_pairs):
-        # Compute deltas
-        delta[ix] = np.copy(fp_seq[ix] - fp_seq[ix+n_pairs])
-
-        for xn in range(n_nulls):
-            print(f'for computing reDeltaP: xn={xn}')
-            # Real Part of deltaP
-            # absDeltaP[xn] = np.sqrt((fp_seq[ix] + fp_seq[ix+n_pairs])/2 - fp_seq[xn])
-            # probe_ft = (1/np.sqrt(2*np.pi)) * np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(cdi.cout.DM_probe_series[ix])))
-            # phsDeltaP[xn] = np.arctan2(probe_ft.imag, probe_ft.real)
-
-            # Least Squares Solution
-            # Epupil[xn] = np.linalg.solve((-ImDeltaP[xn] + ReDeltaP[xn], delta[ix]))
-            # duVecNby1 = -dmfac * np.linalg.solve((10 ** log10reg * np.diag(cvar.EyeGstarGdiag) + cvar.GstarG_wsum),
-            #                                      cvar.RealGstarEab_wsum)
-            # duVec = duVecNby1.reshape((-1,))
-
-            # Fig 2
-    if plot:
-        fig, subplot = plt.subplots(1, n_pairs, figsize=(14,5))
-        fig.subplots_adjust(wspace=0.5, right=0.85)
-
-        fig.suptitle('Deltas for CDI Probes')
-
-        for ax, ix in zip(subplot.flatten(), range(n_pairs)):
-            im = ax.imshow(delta[ix]*1e6, interpolation='none', origin='lower',
-                           norm=SymLogNorm(linthresh=1e-2),
-                           vmin=-1, vmax=1) #, norm=SymLogNorm(linthresh=1e-5))
-            ax.set_title(f"Diff Probe\n" + r'$\theta$' + f'={cdi.phase_series[ix]/np.pi:.3f}' +
-                         r'$\pi$ -$\theta$' + f'={cdi.phase_series[ix+n_pairs]/np.pi:.3f}' + r'$\pi$')
-
-        cax = fig.add_axes([0.9, 0.2, 0.03, 0.6])  # Add axes for colorbar @ position [left,bottom,width,height]
-        cb = fig.colorbar(im, orientation='vertical', cax=cax)  #
-        cb.set_label('Intensity')
-
-        plt.show()
-
-
 if __name__ == '__main__':
     print(f"Testing CDI probe")
-    mecshm, cout = MEC_CDI()
+    mecshm, out = MEC_CDI()
 
     dumm=0
