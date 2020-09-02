@@ -23,9 +23,12 @@ import datetime
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm, SymLogNorm
 import pickle
-import os
 
 from pyMilk.interfacing.isio_shmlib import SHM
+
+import matplotlib
+matplotlib.use('TkAgg')
+# plt.ion()
 
 
 ######################################################
@@ -137,7 +140,7 @@ def MEC_CDI():
 # CDI
 ######################################################
 
-class CDIOut():
+class Slapper():
     '''Stole this idea from falco. Just passes an object you can slap stuff onto'''
     pass
 
@@ -156,14 +159,14 @@ class CDI_params():
         self.probe_h = 30  # [actuator coordinates] height of the probe
         self.probe_shift = [8, 8]  # [actuator coordinates] center position of the probe (should move off-center to
         # avoid coronagraph)
-        self.probe_spacing = 6  # distance from the focal plane center to edge of the rectangular probed region
+        self.probe_spacing = 10  # distance from the focal plane center to edge of the rectangular probed region
 
         # Phase Sequence of Probes
         self.phs_intervals = np.pi / 3  # [rad] phase interval over [0, 2pi]
         self.phase_integration_time = 0.01  # [s]  How long in sec to apply each probe in the sequence
         self.null_time = 3  # [s]  time between repeating probe cycles (data to be nulled using probe info)
         self.end_probes_after_time = 60  # [sec] probing repeats for x seconds until stopping
-        self.end_probes_after_ncycles = 3  # [int] probe repeats until it has completed x full cycles
+        self.end_probes_after_ncycles = 2  # [int] probe repeats until it has completed x full cycles
 
     def __iter__(self):
         for attr, value in self.__dict__.items():
@@ -178,6 +181,8 @@ class CDI_params():
 
         phase_series is used to populate cdi.phase_series, which may be longer than cdi.phase_cycle if multiple cycles
         are run, or probes may last for longer than one single timestep
+
+        default is to end probe cycles using self.end_probes_after_
 
         currently, I assume the timestream is not that long. Should only use this for short timestreams, and use a more
         efficient code for long simulations (scale of minutes or more)
@@ -201,7 +206,8 @@ class CDI_params():
         self.total_time = self.time_probe_plus_null * self.end_probes_after_ncycles
         if self.total_time > self.end_probes_after_time:
             self.total_time = self.end_probes_after_time
-            warnings.warn(f'Ending CDI probes after non-integer number of cycles')
+            warnings.warn(f'Ending CDI probes after {self.end_probes_after_time:0.4f} sec rather than after'
+                          f'{self.end_probes_after_ncycles} cycles')
 
         return self.phase_cycle
 
@@ -210,34 +216,43 @@ class CDI_params():
         Initialize a return structure to save probes and timeseries of commands sent
 
         Output structure contains:
-        DM_probe_series: [n_probes, n_act, n_act] series of applied DM probes, each with a different phase
+        DM_cmd_cycle: [n_probes+1, n_act, n_act] series of applied DM probes, each with a different phase (plus last flat)
 
         """
-        out = CDIOut()
+        out = Slapper()
+        out.probe = Slapper()
+        out.ts = Slapper()
+
         # Probe Info
-        out.probe_amp = self.probe_amp
-        out.probe_w = self.probe_w
-        out.probe_h = self.probe_h
-        out.probe_shift = self.probe_shift
-        out.probe_spacing = self.probe_spacing
+        out.probe.amp = self.probe_amp
+        out.probe.width = self.probe_w
+        out.probe.height = self.probe_h
+        out.probe.shift = self.probe_shift
+        out.probe.spacing = self.probe_spacing
+        out.probe.DM_cmd_cycle = np.zeros((self.n_probes + 1, nact, nact))
 
         # Time Info
-        out.phase_cycle = self.phase_cycle
-        out.phase_integration_time = self.phase_integration_time
-        out.DM_probe_series = np.zeros((self.n_probes+1, nact, nact))
-        out.total_time = self.total_time
-        out.n_commands = (self.n_probes+1) * self.end_probes_after_ncycles + 1
+        out.ts.n_probes = self.n_probes
+        out.ts.phase_cycle = self.phase_cycle
+        out.ts.phase_integration_time = self.phase_integration_time
+        out.ts.null_time = self.null_time
+        out.ts.total_time = self.total_time
+        out.ts.n_cmds = (self.n_probes+1) * self.end_probes_after_ncycles + 1
         # print(f'{cout.n_commands} = cout.n_commands')
-        out.probe_tseries = np.zeros((out.n_commands+1,),  dtype='datetime64[s]')
+        out.ts.cmd_tstamps = np.zeros((out.ts.n_cmds,),  dtype='datetime64[s]')
 
         return out
 
     def save_probe(self, out, ix, probe):
         if ix <= self.n_probes:
-            out.DM_probe_series[ix] = probe
+            out.probe.DM_cmd_cycle[ix] = probe
+
+            # Testing FF propagation
+            if self.verbose:
+                plot_probe_response(out)
 
     def save_tseries(self, out, it, t):
-        out.probe_tseries[it-1] = t
+        out.ts.cmd_tstamps[it-1] = t
 
     def save_out_to_disk(self, out, save_location='CDI_tseries', plot=False):
         """
@@ -255,28 +270,8 @@ class CDI_params():
 
         # Fig
         if plot:
-            if self.n_probes >= 4:
-                nrows = 2
-                ncols = self.n_probes//2
-                figheight = 5
-            else:
-                nrows = 1
-                ncols = self.n_probes
-                figheight = 12
-
-            fig, subplot = plt.subplots(nrows, ncols, figsize=(12, figheight))
-            fig.subplots_adjust(wspace=0.5)
-
-            fig.suptitle('Probe Series')
-
-            for ax, ix in zip(subplot.flatten(), range(self.n_probes)):
-                # im = ax.imshow(self.DM_probe_series[ix], interpolation='none', origin='lower')
-                im = ax.imshow(out.DM_probe_series[ix], interpolation='none', origin='lower')
-                ax.set_title(f"Probe " + r'$\theta$=' + f'{out.phase_cycle[ix]/np.pi:.2f}' + r'$\pi$')
-
-            cb = fig.colorbar(im)  #
-            cb.set_label('um')
-
+            plot_probe_cycle(out)
+            plot_probe_response(out, 0)
             plt.show()
 
 
@@ -295,7 +290,7 @@ def config_probe(cdi, theta, nact):
 
     :param theta: phase of the probe
     :param nact: number of actuators in the mirror, should change if 'woofer' or 'tweeter'
-    :param iw: index of wavelength number in ap.wvl_range
+    :param : ncycle
     :return: height of phase probes to add to the DM map in adaptive.py
     """
     x = np.linspace(-1/2-cdi.probe_shift[0]/nact, 1/2-cdi.probe_shift[0]/nact, nact, dtype=np.float32)
@@ -303,59 +298,108 @@ def config_probe(cdi, theta, nact):
     X,Y = np.meshgrid(x, y)
 
     probe = cdi.probe_amp * np.sinc(cdi.probe_w * X) * np.sinc(cdi.probe_h * Y) \
-            * np.sin(2*np.pi*cdi.probe_spacing*Y + theta)
-
-    # Testing FF propagation
-    if cdi.verbose:  # and theta == cdi.phase_series[0]
-        probe_ft = (1/np.sqrt(2*np.pi)) * np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(probe)))
-
-        # fig, ax = plt.subplots(1, 3, figsize=(12, 5))
-        # fig.subplots_adjust(wspace=0.5)
-        # ax1, ax2, ax3 = ax.flatten()
-        #
-        # fig.suptitle(f"spacing={cdi.probe_spacing}, Dimensions {cdi.probe_w}x{cdi.probe_h} "
-        #              f"\nProbe Amp = {cdi.probe_amp}, " + r'$\theta$' + f"={theta/np.pi:.3f}" + r'$\pi$' + '\n')
-        #
-        # im1 = ax1.imshow(probe, interpolation='none', origin='lower')
-        # ax1.set_title(f"Probe on DM \n(dm coordinates)")
-        # cb = fig.colorbar(im1, ax=ax1)
-        #
-        # im2 = ax2.imshow(np.sqrt(probe_ft.imag ** 2 + probe_ft.real ** 2), interpolation='none', origin='lower')
-        # ax2.set_title("Focal Plane Amplitude")
-        # cb = fig.colorbar(im2, ax=ax2)
-        #
-        # ax3.imshow(np.arctan2(probe_ft.imag, probe_ft.real), interpolation='none', origin='lower', cmap='hsv')
-        # ax3.set_title("Focal Plane Phase")
-
-        # plt.show()
-
-        # Fig 2
-        fig, ax = plt.subplots(1, 3, figsize=(12, 5))
-        fig.subplots_adjust(wspace=0.5)
-        ax1, ax2, ax3 = ax.flatten()
-        fig.suptitle(f'Real & Imaginary Probe Response in Focal Plane\n'
-                     f' '+r'$\theta$'+f'={theta/np.pi:.3f}'+r'$\pi$'+f', n_actuators = {nact}\n')
-
-        im1 = ax1.imshow(probe, interpolation='none', origin='lower')
-        ax1.set_title(f"Probe on DM \n(dm coordinates)")
-        cb = fig.colorbar(im1, ax=ax1)
-
-        im2 = ax2.imshow(probe_ft.real, interpolation='none', origin='lower')
-        ax2.set_title(f"Real FT of Probe")
-
-        im3 = ax3.imshow(probe_ft.imag, interpolation='none', origin='lower')
-        ax3.set_title(f"Imag FT of Probe")
-
-        plt.show()
-
-    # Saving Probe in the series
-    # cdi.save_probe(probe)
+            * np.sin(2*np.pi*cdi.probe_spacing*X + theta)
 
     return probe
 
 
+def plot_probe_cycle(out):
+    """
+    plots one complete 0.2pi cycle of the phase probes applied to the DM (DM coordinates)
+
+    :param out:
+    :return:
+    """
+    if out.ts.n_probes >= 4:
+        nrows = 2
+        ncols = out.ts.n_probes // 2
+        figheight = 6
+    else:
+        nrows = 1
+        ncols = out.ts.n_probes
+        figheight = 2
+
+    fig, subplot = plt.subplots(nrows, ncols, figsize=(10, figheight))
+    fig.subplots_adjust(left=0.02, hspace=.4, wspace=0.2)
+
+    fig.suptitle('DM Probe Cycle')
+
+    for ax, ix in zip(subplot.flatten(), range(out.ts.n_probes)):
+        # im = ax.imshow(self.DM_probe_series[ix], interpolation='none', origin='lower')
+        im = ax.imshow(out.probe.DM_cmd_cycle[ix], interpolation='none', origin='lower',
+                       vmin=-out.probe.amp, vmax=out.probe.amp)
+        ax.set_title(f"Probe " + r'$\theta$=' + f'{out.ts.phase_cycle[ix] / np.pi:.2f}' + r'$\pi$')
+
+    warnings.simplefilter("ignore", category=UserWarning)
+    cbar_ax = fig.add_axes([0.9, 0.1, 0.02, 0.8])  # Add axes for colorbar @ position [left,bottom,width,height]
+    cb = fig.colorbar(im, cax=cbar_ax, orientation='vertical')  #
+    cb.set_label(r'$\mu$m', fontsize=12)
+
+
+def plot_probe_response(out, ix):
+    """
+    plots the probe appled to the DM as well as its projected response in the focal plane in both amp/phase and
+    real/imag
+
+    :return:
+    """
+    probe_ft = (1 / np.sqrt(2 * np.pi)) * np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(out.probe.DM_cmd_cycle[ix])))
+    fig, ax = plt.subplots(3, 2, figsize=(8, 18))
+    fig.subplots_adjust(wspace=0.3, hspace=0.5)
+    ax1, ax2, ax3, ax4, ax5, ax6 = ax.flatten()
+
+    fig.suptitle(f"\nProbe Amp = {out.probe.amp}, " + r'$\theta$' + f"={out.ts.phase_cycle[ix] / np.pi:.3f}"
+                 + r'$\pi$'+
+                 f" \nDimensions {out.probe.width}x{out.probe.height}, spacing={out.probe.spacing}\n"
+                 )
+
+    im1 = ax1.imshow(out.probe.DM_cmd_cycle[ix], interpolation='none', origin='lower')
+    ax1.set_title(f"Probe on DM \n(dm coordinates)")
+    cb = fig.colorbar(im1, ax=ax1)
+
+    im3 = ax3.imshow(np.sqrt(probe_ft.imag ** 2 + probe_ft.real ** 2), interpolation='none', origin='lower')
+    ax3.set_title("Focal Plane Amplitude")
+    cb = fig.colorbar(im3, ax=ax3)
+
+    im4 = ax4.imshow(np.arctan2(probe_ft.imag, probe_ft.real), interpolation='none', origin='lower', cmap='hsv')
+    ax4.set_title("Focal Plane Phase")
+
+    im5 = ax5.imshow(probe_ft.real, interpolation='none', origin='lower')
+    ax5.set_title(f"Real FT of Probe")
+
+    im6 = ax6.imshow(probe_ft.imag, interpolation='none', origin='lower')
+    ax6.set_title(f"Imag FT of Probe")
+
+    # plt.show()  #block=False
+
+
 if __name__ == '__main__':
-    print(f"Testing CDI probe")
+    print(f"\nTesting CDI probe command cycle\n")
     mecshm, out = MEC_CDI()
 
     dumm=0
+
+"""plt.show()
+
+            # Fig 2
+            probe_ft = (1 / np.sqrt(2 * np.pi)) * \
+                       np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(out.probe.DM_cmd_cycle[0])))
+
+            fig, ax = plt.subplots(1, 3, figsize=(12, 5))
+            fig.subplots_adjust(wspace=0.5)
+            ax1, ax2, ax3 = ax.flatten()
+            fig.suptitle(f'Real & Imaginary Probe Response in Focal Plane\n'
+                         f' ' + r'$\theta$' + f'={out.ts.phase_cycle[0] / np.pi:.3f}' + r'$\pi$')
+
+            im1 = ax1.imshow(out.probe.DM_cmd_cycle[0], interpolation='none', origin='lower')
+            ax1.set_title(f"Probe on DM \n(dm coordinates)")
+            cb = fig.colorbar(im1, ax=ax1)
+
+            im2 = ax2.imshow(probe_ft.real, interpolation='none', origin='lower')
+            ax2.set_title(f"Real FT of Probe")
+
+            im3 = ax3.imshow(probe_ft.imag, interpolation='none', origin='lower')
+            ax3.set_title(f"Imag FT of Probe")
+
+            plt.show()
+"""
