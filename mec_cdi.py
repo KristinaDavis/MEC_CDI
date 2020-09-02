@@ -132,7 +132,7 @@ def MEC_CDI():
     MECshm.set_data(flat)
 
     # Saving Probe and timestamp together
-    cdi.save_out_to_disk(out, plot=True)
+    cdi.save_out_to_disk(out, plot=False)
 
     return MECshm, out
 
