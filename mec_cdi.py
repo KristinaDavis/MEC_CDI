@@ -213,7 +213,7 @@ class CDI_params():
         self.phase_integration_time = 1  # [s]  How long in sec to apply each probe in the sequence
         self.null_time = 4  # [s]  time between repeating probe cycles (data to be nulled using probe info)
         self.end_probes_after_time = 10  # [sec] probing repeats for x seconds until stopping
-        self.end_probes_after_ncycles = 2  # [int] probe repeats until it has completed x full cycles
+        self.end_probes_after_ncycles = 20  # [int] probe repeats until it has completed x full cycles
 
     def __iter__(self):
         for attr, value in self.__dict__.items():
