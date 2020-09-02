@@ -27,7 +27,7 @@ import pickle
 from pyMilk.interfacing.isio_shmlib import SHM
 
 import matplotlib
-matplotlib.use('TkAgg')
+matplotlib.use('QT5Agg')
 # plt.ion()
 
 
