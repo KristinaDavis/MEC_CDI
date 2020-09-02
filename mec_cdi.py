@@ -427,8 +427,9 @@ def plot_probe_response(out, ix):
 
 if __name__ == '__main__':
     print(f"\nTesting CDI probe command cycle\n")
-    #mecshm, out = MEC_CDI()
-    MEC_00flat()
+    mecshm, out = MEC_CDI()
+    #MEC_00flat()
 
+    print()
     dumm=0
 
