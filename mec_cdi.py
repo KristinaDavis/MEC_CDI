@@ -312,7 +312,7 @@ class CDI_params():
         """
         #
         nw = datetime.datetime.now()
-        save_location = save_location + f"_{nw.year}_{nw.month}_{nw.day}_{nw.hour}_{nw.minute}.pkl"
+        save_location = save_location + f"{nw.day}-{nw.month}-{nw.year}_hour{nw.hour}_min{nw.minute}.pkl"
         with open(save_location, 'wb') as handle:
             pickle.dump(out, handle, protocol=pickle.HIGHEST_PROTOCOL)
         handle.close()
