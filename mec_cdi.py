@@ -264,6 +264,8 @@ class CDI_params():
         :return: nothing returned explicitly but data is saved to disk at save_location
         """
         #
+        nw = datetime.datetime.now()
+        save_location = save_location + f"_{nw.year}_{nw.month}_{nw.day}_{nw.hour}_{nw.min}_{nw.second}"
         with open(save_location, 'wb') as handle:
             pickle.dump(out, handle, protocol=pickle.HIGHEST_PROTOCOL)
         handle.close()
@@ -355,11 +357,14 @@ def plot_probe_response(out, ix):
 
     im1 = ax1.imshow(out.probe.DM_cmd_cycle[ix], interpolation='none', origin='lower')
     ax1.set_title(f"Probe on DM \n(dm coordinates)")
-    cb = fig.colorbar(im1, ax=ax1)
+    #cb = fig.colorbar(im1, ax=ax1)
+
+    ax2.axis('off')
+    #ax2('off')
 
     im3 = ax3.imshow(np.sqrt(probe_ft.imag ** 2 + probe_ft.real ** 2), interpolation='none', origin='lower')
     ax3.set_title("Focal Plane Amplitude")
-    cb = fig.colorbar(im3, ax=ax3)
+    #cb = fig.colorbar(im3, ax=ax3)
 
     im4 = ax4.imshow(np.arctan2(probe_ft.imag, probe_ft.real), interpolation='none', origin='lower', cmap='hsv')
     ax4.set_title("Focal Plane Phase")
@@ -379,27 +384,3 @@ if __name__ == '__main__':
 
     dumm=0
 
-"""plt.show()
-
-            # Fig 2
-            probe_ft = (1 / np.sqrt(2 * np.pi)) * \
-                       np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(out.probe.DM_cmd_cycle[0])))
-
-            fig, ax = plt.subplots(1, 3, figsize=(12, 5))
-            fig.subplots_adjust(wspace=0.5)
-            ax1, ax2, ax3 = ax.flatten()
-            fig.suptitle(f'Real & Imaginary Probe Response in Focal Plane\n'
-                         f' ' + r'$\theta$' + f'={out.ts.phase_cycle[0] / np.pi:.3f}' + r'$\pi$')
-
-            im1 = ax1.imshow(out.probe.DM_cmd_cycle[0], interpolation='none', origin='lower')
-            ax1.set_title(f"Probe on DM \n(dm coordinates)")
-            cb = fig.colorbar(im1, ax=ax1)
-
-            im2 = ax2.imshow(probe_ft.real, interpolation='none', origin='lower')
-            ax2.set_title(f"Real FT of Probe")
-
-            im3 = ax3.imshow(probe_ft.imag, interpolation='none', origin='lower')
-            ax3.set_title(f"Imag FT of Probe")
-
-            plt.show()
-"""
