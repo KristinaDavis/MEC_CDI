@@ -136,6 +136,53 @@ def MEC_CDI():
 
     return MECshm, out
 
+
+def MEC_06flat():
+    """
+    interfaces with the shared memory buffer of remote DM
+
+    Here we create the interface between the shm and this code to apply new offsets for the remote DM. The interfacing
+    is handled by pyMILK found https://github.com/milk-org/pyMilk. We also create the probe by calling config_probe, and
+    send that offset map to the shm. We read in the time the probe pattern was applied. Functinality exists to save
+    the probe pattern and timestamp together
+
+    #TODO need to figure out how to save this
+
+    :return: nothing explicitly returned but probe is applied (will persist on DM until it is externally cleared,
+            eg by the RTC computer on SCExAO). Saving capability not currently implemented.
+    """
+    # Create shared memory (shm) interface
+    sp = ShmParams()
+    MECshm = SHM(sp.shm_name)  # create c-type interface using pyMilk's ISIO wrapper
+    data = MECshm.get_data()  # used to determine size of struct (removes chance of creating wrong probe size)
+
+    # Create Flat
+    flat = np.zeros((data.shape[0], data.shape[1]), dtype=np.float32)
+    MECshm.set_data(flat)  # Apply flat probe to get start time
+
+def MEC_00flat():
+    """
+    interfaces with the shared memory buffer of remote DM
+
+    Here we create the interface between the shm and this code to apply new offsets for the remote DM. The interfacing
+    is handled by pyMILK found https://github.com/milk-org/pyMilk. We also create the probe by calling config_probe, and
+    send that offset map to the shm. We read in the time the probe pattern was applied. Functinality exists to save
+    the probe pattern and timestamp together
+
+    #TODO need to figure out how to save this
+
+    :return: nothing explicitly returned but probe is applied (will persist on DM until it is externally cleared,
+            eg by the RTC computer on SCExAO). Saving capability not currently implemented.
+    """
+    # Create shared memory (shm) interface
+    sp = ShmParams()
+    MECshm = SHM('dm00disp06')  # create c-type interface using pyMilk's ISIO wrapper
+    data = MECshm.get_data()  # used to determine size of struct (removes chance of creating wrong probe size)
+
+    # Create Flat
+    flat = np.zeros((data.shape[0], data.shape[1]), dtype=np.float32)
+    MECshm.set_data(flat)  # Apply flat probe to get start time
+
 ######################################################
 # CDI
 ######################################################
@@ -380,7 +427,8 @@ def plot_probe_response(out, ix):
 
 if __name__ == '__main__':
     print(f"\nTesting CDI probe command cycle\n")
-    mecshm, out = MEC_CDI()
+    #mecshm, out = MEC_CDI()
+    MEC_00flat()
 
     dumm=0
 

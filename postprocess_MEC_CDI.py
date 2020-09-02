@@ -39,8 +39,8 @@ def cdi_postprocess(cpx_seq, plot=False):
     st = time.time()
 
     # Defining Matrices
-    n_pairs = cdi.n_probes // 2  # number of deltas (probe differentials)
-    n_nulls = sp.numframes - cdi.n_probes
+    n_pairs = cp.n_probes // 2  # number of deltas (probe differentials)
+    n_nulls = cp.n_commands - cp.n_probes
     delta = np.zeros((n_pairs,sp.grid_size, sp.grid_size), dtype=float)
     Epupil = np.zeros((n_nulls*2, sp.grid_size, sp.grid_size), dtype=complex)
     H = np.zeros((n_pairs, 2), dtype=float)
