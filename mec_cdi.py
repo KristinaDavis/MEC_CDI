@@ -34,7 +34,7 @@ matplotlib.use('QT5Agg')
 ######################################################
 # Interfacing with SCExAO DM
 ######################################################
-class ShmParams():
+class ShmParams:
     """
     settings related to the shared memory file in pyMilk. The SHM has the following format (documentation from
     the pyMilk SHM code itself https://github.com/milk-org/pyMilk/blob/master/pyMilk/interfacing/isio_shmlib.py
@@ -72,14 +72,18 @@ def MEC_CDI():
     interfaces with the shared memory buffer of remote DM
 
     Here we create the interface between the shm and this code to apply new offsets for the remote DM. The interfacing
-    is handled by pyMILK found https://github.com/milk-org/pyMilk. We also create the probe by calling config_probe, and
-    send that offset map to the shm. We read in the time the probe pattern was applied. Functinality exists to save
-    the probe pattern and timestamp together
+    is handled by pyMILK found https://github.com/milk-org/pyMilk.
 
-    #TODO need to figure out how to save this
+    We also create the probe by calling config_probe, and send that offset map to the shm in a loop based on the CDI
+    settings in CDI_params. We read in the time the probe pattern was applied, and save it and other cdi params to a
+    structure called out.
+
+    You can set both cdi.end_probes_after_ncycles and cdi.end_probes_after_time, and the loop will break at the shorter
+    of the two, but if it hits the time limit it finishes the last full cycle before breaking (eg will wait the full
+    length to complete the probe cycle and null time if the cdi.end_probes_after_time hits in the middle of a cycle).
 
     :return: nothing explicitly returned but probe is applied (will persist on DM until it is externally cleared,
-            eg by the RTC computer on SCExAO). Saving capability not currently implemented.
+            eg by the RTC computer on SCExAO). DM flat is sent as last command after cycle is terminated.
     """
     # Create shared memory (shm) interface
     sp = ShmParams()
@@ -101,6 +105,11 @@ def MEC_CDI():
     n_cmd = 0
     while n_cycles < cdi.end_probes_after_ncycles:
         olt = datetime.datetime.now()  # outer loop time
+        if (olt-pt_start).total_seconds() > cdi.total_time:
+            # print(f'elasped={(olt-pt_start).total_seconds()}, total test time={cdi.total_time},\n'
+            #       f'ncycles={n_cycles}, n_cmds={n_cmd}')
+            print('Max time Elapsed. Ending probe cycles')
+            break
         for ip, theta in enumerate(cdi.phase_cycle):
             ilt = datetime.datetime.now()  # inner loop time
             probe = config_probe(cdi, theta, data.shape[0])
@@ -111,7 +120,7 @@ def MEC_CDI():
                 cdi.save_probe(out, n_cmd, probe)
             n_cmd += 1
             while True:
-                if (datetime.datetime.now() - ilt).seconds > cdi.phase_integration_time:
+                if (datetime.datetime.now() - ilt).total_seconds() > cdi.phase_integration_time:
                     break
 
         # Send flat and wait until next cycle begins
@@ -121,12 +130,13 @@ def MEC_CDI():
         cdi.save_probe(out, n_cmd, flat)
         n_cmd += 1
         while True:
-            # print(f"n_cmd = {n_cmd} cdi full time {cdi.time_probe_plus_null}")
-            if (datetime.datetime.now() - pt_sent).seconds > cdi.null_time:
-                # print(f"{(datetime.datetime.now() - pt_sent).seconds}")
+            if (datetime.datetime.now() - pt_sent).total_seconds() > cdi.null_time:
+                # print(f"n_cmd = {n_cmd}\n "
+                #       f'cycle time = {(datetime.datetime.now() - olt).total_seconds()}s vs expected '
+                #       f'probe+null time= {cdi.time_probe_plus_null:.2f}s')
                 n_cycles += 1
                 break
-    print(f'total time = {(pt_sent-pt_start).seconds}')
+    print(f'\ntotal time elapsed = {(datetime.datetime.now()-pt_start).total_seconds():.2f} sec')
 
     # Make sure shm is clear
     MECshm.set_data(flat)
@@ -137,58 +147,33 @@ def MEC_CDI():
     return MECshm, out
 
 
-def MEC_06flat():
+def send_flat(channel):
     """
-    interfaces with the shared memory buffer of remote DM
+    sends a DM flat (array of 0's) to the DM channel specified
 
-    Here we create the interface between the shm and this code to apply new offsets for the remote DM. The interfacing
-    is handled by pyMILK found https://github.com/milk-org/pyMilk. We also create the probe by calling config_probe, and
-    send that offset map to the shm. We read in the time the probe pattern was applied. Functinality exists to save
-    the probe pattern and timestamp together
-
-    #TODO need to figure out how to save this
+    SCExAO DM channel names have the format "dm00dispXX" where XX is the channel number. Generally CDI probes or any
+    active nulling takes place on channel 06 or 07. I think 00 is the 'observed' DM flat (may not be an array of 0s
+    due to voltage anomolies on the DM itself).
 
     :return: nothing explicitly returned but probe is applied (will persist on DM until it is externally cleared,
-            eg by the RTC computer on SCExAO). Saving capability not currently implemented.
+            eg by the RTC computer on SCExAO).
     """
     # Create shared memory (shm) interface
     sp = ShmParams()
-    MECshm = SHM(sp.shm_name)  # create c-type interface using pyMilk's ISIO wrapper
+    # channel = sp.shm_name
+    MECshm = SHM(channel)  # create c-type interface using pyMilk's ISIO wrapper
     data = MECshm.get_data()  # used to determine size of struct (removes chance of creating wrong probe size)
 
     # Create Flat
     flat = np.zeros((data.shape[0], data.shape[1]), dtype=np.float32)
     MECshm.set_data(flat)  # Apply flat probe to get start time
 
-def MEC_00flat():
-    """
-    interfaces with the shared memory buffer of remote DM
-
-    Here we create the interface between the shm and this code to apply new offsets for the remote DM. The interfacing
-    is handled by pyMILK found https://github.com/milk-org/pyMilk. We also create the probe by calling config_probe, and
-    send that offset map to the shm. We read in the time the probe pattern was applied. Functinality exists to save
-    the probe pattern and timestamp together
-
-    #TODO need to figure out how to save this
-
-    :return: nothing explicitly returned but probe is applied (will persist on DM until it is externally cleared,
-            eg by the RTC computer on SCExAO). Saving capability not currently implemented.
-    """
-    # Create shared memory (shm) interface
-    sp = ShmParams()
-    MECshm = SHM('dm00disp06')  # create c-type interface using pyMilk's ISIO wrapper
-    data = MECshm.get_data()  # used to determine size of struct (removes chance of creating wrong probe size)
-
-    # Create Flat
-    flat = np.zeros((data.shape[0], data.shape[1]), dtype=np.float32)
-    MECshm.set_data(flat)  # Apply flat probe to get start time
 
 ######################################################
 # CDI
 ######################################################
-
-class Slapper():
-    '''Stole this idea from falco. Just passes an object you can slap stuff onto'''
+class Slapper:
+    """Stole this idea from falco. Just passes an object you can slap stuff onto"""
     pass
 
 
@@ -205,7 +190,7 @@ class CDI_params():
         self.probe_w = 10  # [actuator coordinates] width of the probe
         self.probe_h = 30  # [actuator coordinates] height of the probe
         self.probe_shift = [8, 8]  # [actuator coordinates] center position of the probe (should move off-center to
-        # avoid coronagraph)
+                                   # avoid coronagraph)
         self.probe_spacing = 5  # distance from the focal plane center to edge of the rectangular probed region
 
         # Phase Sequence of Probes
@@ -229,8 +214,6 @@ class CDI_params():
         phase_series is used to populate cdi.phase_series, which may be longer than cdi.phase_cycle if multiple cycles
         are run, or probes may last for longer than one single timestep
 
-        default is to end probe cycles using self.end_probes_after_
-
         currently, I assume the timestream is not that long. Should only use this for short timestreams, and use a more
         efficient code for long simulations (scale of minutes or more)
 
@@ -253,7 +236,7 @@ class CDI_params():
         self.total_time = self.time_probe_plus_null * self.end_probes_after_ncycles
         if self.total_time > self.end_probes_after_time:
             self.total_time = self.end_probes_after_time
-            warnings.warn(f'Ending CDI probes after {self.end_probes_after_time:0.4f} sec rather than after'
+            warnings.warn(f'Ending CDI probes after {self.end_probes_after_time:0.2f} sec rather than after '
                           f'{self.end_probes_after_ncycles} cycles')
 
         return self.phase_cycle
@@ -428,7 +411,7 @@ def plot_probe_response(out, ix):
 if __name__ == '__main__':
     print(f"\nTesting CDI probe command cycle\n")
     mecshm, out = MEC_CDI()
-    #MEC_00flat()
+    #send_flat('dm00disp06')
 
     print()
     dumm=0
