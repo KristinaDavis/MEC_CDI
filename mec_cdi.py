@@ -202,16 +202,16 @@ class CDI_params():
 
         # Probe Dimensions (extent in pupil plane coordinates)
         self.probe_amp = 0.150  # [um] probe amplitude, scale should be in units of actuator height limits
-        self.probe_w = 15  # [actuator coordinates] width of the probe
+        self.probe_w = 10  # [actuator coordinates] width of the probe
         self.probe_h = 30  # [actuator coordinates] height of the probe
         self.probe_shift = [8, 8]  # [actuator coordinates] center position of the probe (should move off-center to
         # avoid coronagraph)
-        self.probe_spacing = 7  # distance from the focal plane center to edge of the rectangular probed region
+        self.probe_spacing = 5  # distance from the focal plane center to edge of the rectangular probed region
 
         # Phase Sequence of Probes
         self.phs_intervals = np.pi / 3  # [rad] phase interval over [0, 2pi]
         self.phase_integration_time = 0.1  # [s]  How long in sec to apply each probe in the sequence
-        self.null_time = 10  # [s]  time between repeating probe cycles (data to be nulled using probe info)
+        self.null_time = 1  # [s]  time between repeating probe cycles (data to be nulled using probe info)
         self.end_probes_after_time = 10  # [sec] probing repeats for x seconds until stopping
         self.end_probes_after_ncycles = 40  # [int] probe repeats until it has completed x full cycles
 
