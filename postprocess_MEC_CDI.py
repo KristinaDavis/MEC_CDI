@@ -13,19 +13,33 @@ import os
 import pickle
 import time
 import datetime
+import pytz
 
-from mec_cdi import CDI_params, CDIOut
-
+from mec_cdi import CDI_params, Slapper
+out = Slapper()
+out.probe = Slapper()
+out.ts = Slapper()
 
 
 def open_MEC_tseries(CDI_tseries='CDI_tseries.pkl'):
     """opens existing MEC CDI timeseries .pkl file and return it"""
     with open(CDI_tseries, 'rb') as handle:
-        CDI_meta =pickle.load(handle)
+        CDI_meta = pickle.load(handle)
     return CDI_meta
 
 
-def cdi_postprocess(cpx_seq, plot=False):
+def last_tstep(meta):
+    """returns the end timestep time from pkl file. This is useful to tell the mkidpipeline when to stop the obs"""
+    last_t = meta.ts.cmd_tstamps[-3]
+    return (last_t - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
+
+def first_tstep(meta):
+    """returns the first timestep time from pkl file. This is useful to tell the mkidpipeline when to start the obs"""
+    first_t = meta.ts.cmd_tstamps[-1]
+    return (first_t - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
+
+
+def cdi_postprocess(fp_seq, plot=False):
     """
     this is the function that accepts the timeseries of intensity images from the simulation and returns the processed
     single image. This function calculates the speckle amplitude phase, and then corrects for it to create the dark
@@ -41,8 +55,8 @@ def cdi_postprocess(cpx_seq, plot=False):
     # Defining Matrices
     n_pairs = cp.n_probes // 2  # number of deltas (probe differentials)
     n_nulls = cp.n_commands - cp.n_probes
-    delta = np.zeros((n_pairs,sp.grid_size, sp.grid_size), dtype=float)
-    Epupil = np.zeros((n_nulls*2, sp.grid_size, sp.grid_size), dtype=complex)
+    delta = np.zeros((n_pairs, fp_seq.shape[-2], fp_seq.shape[-1]), dtype=float)
+    Epupil = np.zeros((n_nulls*2, fp_seq.shape[-2], fp_seq.shape[-1]), dtype=complex)
     H = np.zeros((n_pairs, 2), dtype=float)
     b = np.zeros((n_pairs, 1))
 
@@ -132,9 +146,8 @@ def cdi_postprocess(cpx_seq, plot=False):
         plt.show()
 
 
-        kitten=1
-
 if __name__ == '__main__':
-    cp = open_MEC_tseries('CDI_tseries.pkl')
+    dm_header = open_MEC_tseries('/home/captainkay/mazinlab/MEC_data/CDI_tseries3-9-2020_hour0_min39.pkl')
+    print(f'First Timestep = {first_tstep(dm_header):.0f}\nLast Timestep = {last_tstep(dm_header):.0f}')
 
     dumm=0

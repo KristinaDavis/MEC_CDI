@@ -142,7 +142,8 @@ def MEC_CDI():
     MECshm.set_data(flat)
 
     # Saving Probe and timestamp together
-    cdi.save_out_to_disk(out, plot=False)
+    if cdi.save_to_disk:
+        cdi.save_out_to_disk(out, plot=cdi.verbose)
 
     return MECshm, out
 
@@ -183,15 +184,16 @@ class CDI_params():
     """
     def __init__(self):
         # General
-        self.verbose = False  # False , flag to plot phase probe or not
+        self.verbose = True  # False , flag to plot phase probe or not
+        self.save_to_disk = True
 
         # Probe Dimensions (extent in pupil plane coordinates)
         self.probe_amp = 0.150  # [um] probe amplitude, scale should be in units of actuator height limits
-        self.probe_w = 10  # [actuator coordinates] width of the probe
+        self.probe_w = 15  # [actuator coordinates] width of the probe
         self.probe_h = 30  # [actuator coordinates] height of the probe
         self.probe_shift = [8, 8]  # [actuator coordinates] center position of the probe (should move off-center to
                                    # avoid coronagraph)
-        self.probe_spacing = 5  # distance from the focal plane center to edge of the rectangular probed region
+        self.probe_spacing = 10  # distance from the focal plane center to edge of the rectangular probed region
 
         # Phase Sequence of Probes
         self.phs_intervals = np.pi / 3  # [rad] phase interval over [0, 2pi]
@@ -278,10 +280,11 @@ class CDI_params():
             out.probe.DM_cmd_cycle[ix] = probe
 
             # Testing FF propagation
-            if self.verbose:
-                plot_probe_response(out)
+            # if self.verbose:
+            #     plot_probe_response(out, ix)
 
     def save_tseries(self, out, it, t):
+        print(f'n_command={it-1}, t= {t}')
         out.ts.cmd_tstamps[it-1] = t
 
     def save_out_to_disk(self, out, save_location='CDI_tseries', plot=False):
@@ -295,7 +298,7 @@ class CDI_params():
         """
         #
         nw = datetime.datetime.now()
-        save_location = save_location + f"{nw.day}-{nw.month}-{nw.year}_hour{nw.hour}_min{nw.minute}.pkl"
+        save_location = save_location + f"-{nw.month}-{nw.day}-{nw.year}_hour{nw.hour}_min{nw.minute}.pkl"
         with open(save_location, 'wb') as handle:
             pickle.dump(out, handle, protocol=pickle.HIGHEST_PROTOCOL)
         handle.close()
@@ -413,6 +416,5 @@ if __name__ == '__main__':
     mecshm, out = MEC_CDI()
     #send_flat('dm00disp06')
 
-    print()
     dumm=0
 

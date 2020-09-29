@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData" serverName="dark.physics.ucsb.edu" remoteFilesAllowedToDisappearOnAutoupload="false">
+    <serverData>
+      <paths name="dark.physics.ucsb.edu">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/CaptainKay/src/mkidcore" local="$USER_HOME$/mazinlab/MKIDCore" web="/" />
+            <mapping deploy="/home/CaptainKay/src/mkidpipeline" local="$USER_HOME$/mazinlab/MKIDPipeline" web="/" />
+            <mapping deploy="/scratch/CaptainKay/CDI" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+    </serverData>
+  </component>
+</project>
