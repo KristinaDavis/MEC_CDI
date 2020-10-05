@@ -27,7 +27,7 @@ import pickle
 from pyMilk.interfacing.isio_shmlib import SHM
 
 import matplotlib
-matplotlib.use('QT5Agg')
+# matplotlib.use('QT5Agg')
 # plt.ion()
 
 
@@ -105,8 +105,8 @@ def MEC_CDI():
     n_cmd = 0
     while n_cycles < cdi.end_probes_after_ncycles:
         olt = datetime.datetime.now()  # outer loop time
-        if (olt-pt_start).total_seconds() > cdi.total_time:
-            # print(f'elasped={(olt-pt_start).total_seconds()}, total test time={cdi.total_time},\n'
+        if (olt-pt_start).total_seconds() > cdi.time_limit:
+            # print(f'elasped={(olt-pt_start).total_seconds()}, total test time={cdi.time_limit},\n'
             #       f'ncycles={n_cycles}, n_cmds={n_cmd}')
             print('Max time Elapsed. Ending probe cycles')
             break
@@ -136,7 +136,13 @@ def MEC_CDI():
                 #       f'probe+null time= {cdi.time_probe_plus_null:.2f}s')
                 n_cycles += 1
                 break
+
+    # Wrapping up
     print(f'\ntotal time elapsed = {(datetime.datetime.now()-pt_start).total_seconds():.2f} sec')
+    out.ts.n_cycles = n_cycles
+    out.ts.n_cmds = n_cmd
+    out.ts.cmd_tstamps = out.ts.cmd_tstamps[0:n_cmd]
+    out.ts.elapsed_time = (datetime.datetime.now() - pt_start).total_seconds()
 
     # Make sure shm is clear
     MECshm.set_data(flat)
@@ -235,9 +241,9 @@ class CDI_params():
             raise ValueError(f"Need to reconfigure probe sequence for cycles shorter than 1 second")
 
         # Check total probing time
-        self.total_time = self.time_probe_plus_null * self.end_probes_after_ncycles
-        if self.total_time > self.end_probes_after_time:
-            self.total_time = self.end_probes_after_time
+        self.time_limit = self.time_probe_plus_null * self.end_probes_after_ncycles
+        if self.time_limit > self.end_probes_after_time:
+            self.time_limit = self.end_probes_after_time
             warnings.warn(f'Ending CDI probes after {self.end_probes_after_time:0.2f} sec rather than after '
                           f'{self.end_probes_after_ncycles} cycles')
 
@@ -268,8 +274,10 @@ class CDI_params():
         out.ts.phase_cycle = self.phase_cycle
         out.ts.phase_integration_time = self.phase_integration_time
         out.ts.null_time = self.null_time
-        out.ts.total_time = self.total_time
-        out.ts.n_cmds = (self.n_probes+1) * self.end_probes_after_ncycles + 1
+        out.ts.time_limit = self.time_limit
+        out.ts.elapsed_time = 0
+        out.ts.n_cycles = 0
+        out.ts.n_cmds = (self.n_probes+1) * self.end_probes_after_ncycles
         # print(f'{cout.n_commands} = cout.n_commands')
         out.ts.cmd_tstamps = np.zeros((out.ts.n_cmds,),  dtype='datetime64[s]')
 
@@ -284,8 +292,7 @@ class CDI_params():
             #     plot_probe_response(out, ix)
 
     def save_tseries(self, out, it, t):
-        print(f'n_command={it-1}, t= {t}')
-        out.ts.cmd_tstamps[it-1] = t
+        out.ts.cmd_tstamps[it] = t
 
     def save_out_to_disk(self, out, save_location='CDI_tseries', plot=False):
         """
@@ -298,7 +305,7 @@ class CDI_params():
         """
         #
         nw = datetime.datetime.now()
-        save_location = save_location + f"-{nw.month}-{nw.day}-{nw.year}_hour{nw.hour}_min{nw.minute}.pkl"
+        save_location = save_location + f"_{nw.month}-{nw.day}-{nw.year}_hour{nw.hour}_min{nw.minute}.pkl"
         with open(save_location, 'wb') as handle:
             pickle.dump(out, handle, protocol=pickle.HIGHEST_PROTOCOL)
         handle.close()
