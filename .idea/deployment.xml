@@ -1,16 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" serverName="dark.physics.ucsb.edu" remoteFilesAllowedToDisappearOnAutoupload="false">
+  <component name="PublishConfigData" autoUpload="Always" serverName="kkdavis@glados.physics.ucsb.edu:22" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
       <paths name="dark.physics.ucsb.edu">
         <serverdata>
           <mappings>
-            <mapping deploy="/home/CaptainKay/src/mkidcore" local="$USER_HOME$/mazinlab/MKIDCore" web="/" />
-            <mapping deploy="/home/CaptainKay/src/mkidpipeline" local="$USER_HOME$/mazinlab/MKIDPipeline" web="/" />
             <mapping deploy="/scratch/CaptainKay/CDI" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>
+      <paths name="glados.physics.ucsb.edu">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/work/kkdavis/scratch" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="kkdavis@glados.physics.ucsb.edu:22">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/work/kkdavis/cdi" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
     </serverData>
+    <option name="myAutoUpload" value="ALWAYS" />
   </component>
 </project>

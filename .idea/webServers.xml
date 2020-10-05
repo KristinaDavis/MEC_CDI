@@ -9,6 +9,13 @@
           </advancedOptions>
         </fileTransfer>
       </webServer>
+      <webServer id="828af44f-dbb2-47f8-aec9-babb10088a85" name="glados.physics.ucsb.edu">
+        <fileTransfer accessType="SFTP" host="glados.physics.ucsb.edu" port="22" sshConfigId="91a3ccb9-9160-495d-a76c-e21df408aa7c" sshConfig="kkdavis@glados.physics.ucsb.edu:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
     </option>
   </component>
 </project>
