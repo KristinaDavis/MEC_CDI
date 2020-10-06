@@ -194,7 +194,7 @@ class CDI_params():
         self.save_to_disk = True
 
         # Probe Dimensions (extent in pupil plane coordinates)
-        self.probe_amp = 0.15  # [um] probe amplitude, scale should be in units of actuator height limits
+        self.probe_amp = 0.2  # [um] probe amplitude, scale should be in units of actuator height limits
         self.probe_w = 15  # [actuator coordinates] width of the probe
         self.probe_h = 30  # [actuator coordinates] height of the probe
         self.probe_shift = [8, 8]  # [actuator coordinates] center position of the probe (should move off-center to
@@ -203,10 +203,10 @@ class CDI_params():
 
         # Phase Sequence of Probes
         self.phs_intervals = np.pi / 4  # [rad] phase interval over [0, 2pi]
-        self.phase_integration_time = 0.1  # [s]  How long in sec to apply each probe in the sequence
-        self.null_time = 0.5  # [s]  time between repeating probe cycles (data to be nulled using probe info)
+        self.phase_integration_time = 1  # [s]  How long in sec to apply each probe in the sequence
+        self.null_time = 4  # [s]  time between repeating probe cycles (data to be nulled using probe info)
         self.end_probes_after_time = 120  # [sec] probing repeats for x seconds until stopping
-        self.end_probes_after_ncycles = 60  # [int] probe repeats until it has completed x full cycles
+        self.end_probes_after_ncycles = 10  # [int] probe repeats until it has completed x full cycles
 
     def __iter__(self):
         for attr, value in self.__dict__.items():
