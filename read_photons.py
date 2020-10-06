@@ -21,13 +21,32 @@ import datetime
 import pytz
 
 from mec_cdi import CDI_params, Slapper
-import postprocess_MEC_CDI as pp
 import mkidpipeline as pipe
 
+
+def open_MEC_tseries(CDI_tseries='CDI_tseries.pkl'):
+    """opens existing MEC CDI timeseries .pkl file and return it"""
+    with open(CDI_tseries, 'rb') as handle:
+        CDI_meta = pickle.load(handle)
+    return CDI_meta
+
+
+def first_tstep(meta):
+    """returns the first timestep time from pkl file. This is useful to tell the mkidpipeline when to start the obs"""
+    first_t = meta.ts.cmd_tstamps[-1]   # [0]
+    return (first_t - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
+
+
+def last_tstep(meta):
+    """returns the end timestep time from pkl file. This is useful to tell the mkidpipeline when to stop the obs"""
+    last_t = meta.ts.cmd_tstamps[-3]   #  [-1]
+    return (last_t - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
+
+
 ##
-dm_header = pp.open_MEC_tseries('/work/kkdavis/scratch/CDI_tseries_3-9-2020_hour0_min11.pkl')   # CDI_tseries_2-9-2020_hour23_min58.pkl
-firstUnixTstep = np.int(pp.first_tstep(dm_header))
-lastUnixTstep = np.int(pp.last_tstep(dm_header))
+dm_header = open_MEC_tseries('/work/kkdavis/scratch/CDI_tseries_3-9-2020_hour0_min11.pkl')   # CDI_tseries_2-9-2020_hour23_min58.pkl
+firstUnixTstep = np.int(first_tstep(dm_header))
+lastUnixTstep = np.int(last_tstep(dm_header))
 total_h5_seconds = lastUnixTstep - firstUnixTstep
 
 ##  Load Photontable
@@ -75,10 +94,10 @@ print(f'time to make temporal cube is {duration_make_tcube/60:.2f} minutes')
 
 ## Saving Created Data
 # Save several together
-np.savez('cubes_CDI1_config3', table=table1, tcube=tcube1['cube'], meta=dm_header)
+np.savez(f'cubes_CDI2_config1_{firstUnixTstep}', table=table1, tcube=tcube1['cube'], meta=dm_header)
 
 # Save just the temporal cube
-np.save('cdi1_timeCube3', tcube1['cube'])
+np.save(f'cdi2_confg1_{firstUnixTstep}', tcube1['cube'])
 
 # Pickling
 

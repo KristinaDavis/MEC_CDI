@@ -14,30 +14,9 @@ import pickle
 import time
 import datetime
 import pytz
+import scipy.linalg as sl
 
 from mec_cdi import CDI_params, Slapper
-# out = Slapper()
-# out.probe = Slapper()
-# out.ts = Slapper()
-
-
-def open_MEC_tseries(CDI_tseries='CDI_tseries.pkl'):
-    """opens existing MEC CDI timeseries .pkl file and return it"""
-    with open(CDI_tseries, 'rb') as handle:
-        CDI_meta = pickle.load(handle)
-    return CDI_meta
-
-
-def first_tstep(meta):
-    """returns the first timestep time from pkl file. This is useful to tell the mkidpipeline when to start the obs"""
-    first_t = meta.ts.cmd_tstamps[-1]   # [0]
-    return (first_t - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
-
-
-def last_tstep(meta):
-    """returns the end timestep time from pkl file. This is useful to tell the mkidpipeline when to stop the obs"""
-    last_t = meta.ts.cmd_tstamps[-3]   #  [-1]
-    return (last_t - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
 
 
 def cdi_postprocess(fp_seq, meta, plot=False):
@@ -58,7 +37,7 @@ def cdi_postprocess(fp_seq, meta, plot=False):
 
     # Defining Matrices
     n_pairs = meta.ts.n_probes // 2  # number of deltas (probe differentials)
-    n_nulls = meta.ts.n_cmds - meta.ts.n_probes
+    n_nulls = 4  #meta.ts.null_time *meta.ts.
     delta = np.zeros((n_pairs, nx, ny), dtype=float)
     Epupil = np.zeros((n_nulls*2, nx, ny), dtype=complex)
     H = np.zeros((n_pairs, 2), dtype=float)
@@ -71,15 +50,17 @@ def cdi_postprocess(fp_seq, meta, plot=False):
     for i in range(nx):
             for j in range(ny):
 
-                for xn in range(n_nulls):
+                for xn in range(n_nulls-1):
                     for ip in range(n_pairs):
+                        # print(f'\nip={ip}, xn={xn}, n_nulls = {n_nulls} i={i}, j={j}')
+                        # print(f'first={[i,j,ip]}, second={[i,j,ip + n_pairs]}, third={[i,j,meta.ts.n_probes+xn]}')
                         absDeltaP = np.abs((fp_seq[i,j,ip] + fp_seq[i,j,ip + n_pairs]) / 2
                                            - fp_seq[i,j,meta.ts.n_probes+xn])
                         absDeltaP = np.sqrt(absDeltaP)
                         # probe_ft = (1/np.sqrt(2*np.pi)) *
                         # np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(cdi.cout.DM_probe_series[ix])))
-                        phsDeltaP = np.arctan2(fp_seq[i,j,ip].imag - fp_seq[meta.ts.n_probes+xn,i,j].imag,
-                                               fp_seq[ip,i,j].real - fp_seq[meta.ts.n_probes+xn,i,j].real)
+                        phsDeltaP = np.arctan2(fp_seq[i,j,ip].imag - fp_seq[i,j, meta.ts.n_probes+xn].imag,
+                                               fp_seq[i,j,ip].real - fp_seq[i,j, meta.ts.n_probes+xn].real)
                         cpxDeltaP = absDeltaP*np.exp(1j*phsDeltaP)
 
                         H[ip, :] = [-cpxDeltaP.imag, cpxDeltaP.real]
@@ -103,14 +84,14 @@ def cdi_postprocess(fp_seq, meta, plot=False):
 
         for ax, ix in zip(subplot.flatten(), range(n_pairs)):
             im = ax.imshow(delta[ix]*1e6, interpolation='none', origin='lower',
-                           norm=SymLogNorm(linthresh=1e-2),
+                           # norm=SymLogNorm(linthresh=1e-2),
                            vmin=-1, vmax=1) #, norm=SymLogNorm(linthresh=1e-5))
-            ax.set_title(f"Diff Probe\n" + r'$\theta$' + f'={cdi.phase_series[ix]/np.pi:.3f}' +
-                         r'$\pi$ -$\theta$' + f'={cdi.phase_series[ix+n_pairs]/np.pi:.3f}' + r'$\pi$')
+            ax.set_title(f"Diff Probe\n" + r'$\theta$' + f'={meta.ts.phase_cycle[ix]/np.pi:.3f}' +
+                         r'$\pi$ -$\theta$' + f'={meta.ts.phase_cycle[ix+n_pairs]/np.pi:.3f}' + r'$\pi$')
 
-        cax = fig.add_axes([0.9, 0.2, 0.03, 0.6])  # Add axes for colorbar @ position [left,bottom,width,height]
-        cb = fig.colorbar(im, orientation='vertical', cax=cax)  #
-        cb.set_label('Intensity')
+        # cax = fig.add_axes([0.9, 0.2, 0.03, 0.6])  # Add axes for colorbar @ position [left,bottom,width,height]
+        # cb = fig.colorbar(im, orientation='vertical', cax=cax)  #
+        # cb.set_label('Intensity')
 
         plt.show()
 
@@ -122,17 +103,17 @@ def cdi_postprocess(fp_seq, meta, plot=False):
         fig.suptitle('Estimated Focal-Plane E-field')
 
         for ax, ix in zip(subplot, range(n_nulls)):
-            im = ax.imshow(np.abs(Epupil[ix])**2 * 1e6, interpolation='none', origin='lower',
-                           norm=LogNorm())
+            im = ax.imshow(np.abs(Epupil[ix])**2 * 1e6, interpolation='none', origin='lower')#,
+                           # norm=LogNorm())
             ax.set_title(f'Estimation timestep {ix}')
 
-        cax = fig.add_axes([0.9, 0.2, 0.03, 0.6])  # Add axes for colorbar @ position [left,bottom,width,height]
-        cb = fig.colorbar(im, orientation='vertical', cax=cax)  #
-        # cb.set_label('Intensity')
+        # cax = fig.add_axes([0.9, 0.2, 0.03, 0.6])  # Add axes for colorbar @ position [left,bottom,width,height]
+        # cb = fig.colorbar(im, orientation='vertical', cax=cax)  #
+        # # cb.set_label('Intensity')
 
         plt.show()
 
-        #####################
+        # #####################
         # Subtracted E-field
         fig, subplot = plt.subplots(1, n_nulls, figsize=(14, 5))
         fig.subplots_adjust(wspace=0.05, right=0.85)
@@ -140,13 +121,13 @@ def cdi_postprocess(fp_seq, meta, plot=False):
         fig.suptitle('Subtracted E-field')
 
         for ax, ix in zip(subplot, range(n_nulls)):
-            im = ax.imshow(I_fp[ix]-np.abs(Epupil[ix]) ** 2, interpolation='none', origin='lower')#,
+            im = ax.imshow(fp_seq[:,:,ix]-np.abs(Epupil[ix]) ** 2, interpolation='none', origin='lower')#,
                            # norm=LogNorm())
             ax.set_title(f'Estimation timestep {ix}')
 
-        cax = fig.add_axes([0.9, 0.2, 0.03, 0.6])  # Add axes for colorbar @ position [left,bottom,width,height]
-        cb = fig.colorbar(im, orientation='vertical', cax=cax)  #
-        # cb.set_label('Intensity')
+        # cax = fig.add_axes([0.9, 0.2, 0.03, 0.6])  # Add axes for colorbar @ position [left,bottom,width,height]
+        # cb = fig.colorbar(im, orientation='vertical', cax=cax)  #
+        # # cb.set_label('Intensity')
 
         plt.show()
 
