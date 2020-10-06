@@ -120,5 +120,5 @@ def last_tstep(meta):
 #
 
 if __name__ == '__main__':
-    dm_meta = open_MEC_tseries('/home/scexao/mkids/CDI/20201005/CDI_tseries_10-6-2020_hour3_min52.pkl')
+    dm_meta = open_MEC_tseries('/home/scexao/mkids/CDI/20201005/CDI_tseries_10-6-2020_hour5_min27.pkl')
     print(f'First Timestep = {first_tstep(dm_meta):.0f}\nLast Timestep = {last_tstep(dm_meta):.0f}')
