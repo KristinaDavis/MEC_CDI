@@ -19,8 +19,8 @@
       <paths name="kkdavis@glados.physics.ucsb.edu:22">
         <serverdata>
           <mappings>
-            <mapping deploy="/work/kkdavis/cdi" local="$PROJECT_DIR$" />
             <mapping deploy="/data0/captainkay/mec/CDI2" local="$USER_HOME$/mazinlab/MEC_data/CDI2" />
+            <mapping deploy="/work/kkdavis/cdi" local="$PROJECT_DIR$" />
           </mappings>
         </serverdata>
       </paths>

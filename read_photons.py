@@ -117,3 +117,8 @@ plt.show()
 
 # print(np.nonzero(c1[cube]))
 kittens=0
+
+
+if __name__ == '__main__':
+    dm_meta = open_MEC_tseries('/home/scexao/mkids/CDI/20201005/CDI_tseries_10-6-2020_hour3_min52.pkl')
+    print(f'First Timestep = {first_tstep(dm_meta):.0f}\nLast Timestep = {last_tstep(dm_meta):.0f}')
