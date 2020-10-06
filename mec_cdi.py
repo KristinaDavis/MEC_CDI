@@ -194,7 +194,7 @@ class CDI_params():
         self.save_to_disk = True
 
         # Probe Dimensions (extent in pupil plane coordinates)
-        self.probe_amp = 0.20  # [um] probe amplitude, scale should be in units of actuator height limits
+        self.probe_amp = 0.15  # [um] probe amplitude, scale should be in units of actuator height limits
         self.probe_w = 15  # [actuator coordinates] width of the probe
         self.probe_h = 30  # [actuator coordinates] height of the probe
         self.probe_shift = [8, 8]  # [actuator coordinates] center position of the probe (should move off-center to
