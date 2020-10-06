@@ -199,7 +199,7 @@ class CDI_params():
         self.probe_h = 30  # [actuator coordinates] height of the probe
         self.probe_shift = [8, 8]  # [actuator coordinates] center position of the probe (should move off-center to
                                    # avoid coronagraph)
-        self.probe_spacing = 15  # distance from the focal plane center to edge of the rectangular probed region
+        self.probe_spacing = 20  # distance from the focal plane center to edge of the rectangular probed region
 
         # Phase Sequence of Probes
         self.phs_intervals = np.pi / 2  # [rad] phase interval over [0, 2pi]
