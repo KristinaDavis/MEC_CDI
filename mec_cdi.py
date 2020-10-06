@@ -191,7 +191,7 @@ class CDI_params():
     def __init__(self):
         # General
         self.plot = False  # False , flag to plot phase probe or not
-        self.save_to_disk = True
+        self.save_to_disk = False
 
         # Probe Dimensions (extent in pupil plane coordinates)
         self.probe_amp = 0.2  # [um] probe amplitude, scale should be in units of actuator height limits

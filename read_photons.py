@@ -21,7 +21,7 @@ import datetime
 import pytz
 
 from mec_cdi import CDI_params, Slapper
-import mkidpipeline as pipe
+# import mkidpipeline as pipe
 
 
 def open_MEC_tseries(CDI_tseries='CDI_tseries.pkl'):
