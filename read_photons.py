@@ -33,13 +33,13 @@ def open_MEC_tseries(CDI_tseries='CDI_tseries.pkl'):
 
 def first_tstep(meta):
     """returns the first timestep time from pkl file. This is useful to tell the mkidpipeline when to start the obs"""
-    first_t = meta.ts.cmd_tstamps[-1]   # [0]
+    first_t = meta.ts.cmd_tstamps[0]   # [-1]
     return (first_t - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
 
 
 def last_tstep(meta):
     """returns the end timestep time from pkl file. This is useful to tell the mkidpipeline when to stop the obs"""
-    last_t = meta.ts.cmd_tstamps[-3]   #  [-1]
+    last_t = meta.ts.cmd_tstamps[-1]   #  [-3]
     return (last_t - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
 
 
