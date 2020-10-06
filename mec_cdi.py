@@ -27,7 +27,7 @@ import pickle
 from pyMilk.interfacing.isio_shmlib import SHM
 
 import matplotlib
-# matplotlib.use('QT5Agg')
+matplotlib.use('QT5Agg')
 # plt.ion()
 
 
@@ -204,9 +204,9 @@ class CDI_params():
         # Phase Sequence of Probes
         self.phs_intervals = np.pi / 3  # [rad] phase interval over [0, 2pi]
         self.phase_integration_time = 0.2  # [s]  How long in sec to apply each probe in the sequence
-        self.null_time = 0.5  # [s]  time between repeating probe cycles (data to be nulled using probe info)
+        self.null_time = 1  # [s]  time between repeating probe cycles (data to be nulled using probe info)
         self.end_probes_after_time = 30  # [sec] probing repeats for x seconds until stopping
-        self.end_probes_after_ncycles = 12  # [int] probe repeats until it has completed x full cycles
+        self.end_probes_after_ncycles = 20  # [int] probe repeats until it has completed x full cycles
 
     def __iter__(self):
         for attr, value in self.__dict__.items():
