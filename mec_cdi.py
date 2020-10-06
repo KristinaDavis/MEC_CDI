@@ -203,7 +203,7 @@ class CDI_params():
 
         # Phase Sequence of Probes
         self.phs_intervals = np.pi / 4  # [rad] phase interval over [0, 2pi]
-        self.phase_integration_time = 0.2  # [s]  How long in sec to apply each probe in the sequence
+        self.phase_integration_time = 0.1  # [s]  How long in sec to apply each probe in the sequence
         self.null_time = 0.5  # [s]  time between repeating probe cycles (data to be nulled using probe info)
         self.end_probes_after_time = 120  # [sec] probing repeats for x seconds until stopping
         self.end_probes_after_ncycles = 30  # [int] probe repeats until it has completed x full cycles
