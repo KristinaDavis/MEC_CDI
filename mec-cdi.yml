@@ -224,5 +224,5 @@ dependencies:
     - pybind11==2.5.0
     - pyinterval==1.2.0
     - pyqtgraph==0.11.0
-prefix: /home/captainkay/Programs/anaconda3/envs/mec-cdi
+
 

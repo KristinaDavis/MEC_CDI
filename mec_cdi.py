@@ -149,7 +149,13 @@ def MEC_CDI():
 
     # Saving Probe and timestamp together
     if cdi.save_to_disk:
-        cdi.save_out_to_disk(out, plot=cdi.plot)
+        cdi.save_out_to_disk(out)
+
+    # Fig
+    if cdi.plot:
+        plot_probe_cycle(out)
+        plot_probe_response(out, 0)
+        plt.show()
 
     return MECshm, out
 
@@ -190,7 +196,7 @@ class CDI_params():
     """
     def __init__(self):
         # General
-        self.plot = False  # False , flag to plot phase probe or not
+        self.plot = True  # False , flag to plot phase probe or not
         self.save_to_disk = False
 
         # Probe Dimensions (extent in pupil plane coordinates)
@@ -199,13 +205,13 @@ class CDI_params():
         self.probe_h = 30  # [actuator coordinates] height of the probe
         self.probe_shift = [8, 8]  # [actuator coordinates] center position of the probe (should move off-center to
                                    # avoid coronagraph)
-        self.probe_spacing = 20  # distance from the focal plane center to edge of the rectangular probed region
+        self.probe_spacing = 15  # distance from the focal plane center to edge of the rectangular probed region
 
         # Phase Sequence of Probes
         self.phs_intervals = np.pi / 4  # [rad] phase interval over [0, 2pi]
-        self.phase_integration_time = 1  # [s]  How long in sec to apply each probe in the sequence
-        self.null_time = 3  # [s]  time between repeating probe cycles (data to be nulled using probe info)
-        self.end_probes_after_time = 120  # [sec] probing repeats for x seconds until stopping
+        self.phase_integration_time = 0.2  # [s]  How long in sec to apply each probe in the sequence
+        self.null_time = 1  # [s]  time between repeating probe cycles (data to be nulled using probe info)
+        self.end_probes_after_time = 20  # [sec] probing repeats for x seconds until stopping
         self.end_probes_after_ncycles = 10  # [int] probe repeats until it has completed x full cycles
 
     def __iter__(self):
@@ -295,7 +301,7 @@ class CDI_params():
     def save_tseries(self, out, it, t):
         out.ts.cmd_tstamps[it] = t
 
-    def save_out_to_disk(self, out, save_location='CDI_tseries', plot=False):
+    def save_out_to_disk(self, out, save_location='CDI_tseries'):
         """
         saves output structure data locally on disk as a pkl file
 
@@ -310,12 +316,6 @@ class CDI_params():
         with open(save_location, 'wb') as handle:
             pickle.dump(out, handle, protocol=pickle.HIGHEST_PROTOCOL)
         handle.close()
-
-        # Fig
-        if plot:
-            plot_probe_cycle(out)
-            plot_probe_response(out, 0)
-            plt.show()
 
 
 def config_probe(cdi, theta, nact):
