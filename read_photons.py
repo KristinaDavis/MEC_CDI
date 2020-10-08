@@ -44,9 +44,10 @@ def last_tstep(meta):
 
 if __name__ == '__main__':
     ##
-    file_h5 = '/data0/captainkay/mec/CDI2/1601962002.h5'
-    dm_file = '/work/kkdavis/scratch/CDI2/CDI_tseries_10-6-2020_hour5_min27.pkl'  #'/work/kkdavis/scratch/old/CDI_tseries_3-9-2020_hour0_min11.pkl'
-
+    # file_h5 = '/data0/captainkay/mec/SciOct2020/1602049681.h5'
+    # dm_file = '/data0/captainkay/mec/SciOct2020/SciOct2020_config3_dummy.pkl'  #'/work/kkdavis/scratch/old/CDI_tseries_3-9-2020_hour0_min11.pkl'
+    file_h5 = '/data0/captainkay/mec/SciOct2020/1602049820.h5'
+    dm_file = '/data0/captainkay/mec/SciOct2020/SciOct2020_config3_dummy.pkl'
     # Nifty File Name Extraction--makes nice print statements and gets unix timestamp name for file saving later
     r1 = os.path.basename(dm_file)
     dm_name_parts = os.path.splitext(r1)
@@ -54,8 +55,10 @@ if __name__ == '__main__':
     h5_name_parts = os.path.splitext(r2)
 
     ## Load tCube from saved file
-    tcube1 = np.load('cdi1_timeCube3')
-
+    # tcube1 = np.load('cdi1_timeCube3')
+    
+    ##  Load Photontable
+    table1 = pipe.Photontable(file_h5)
 
     ## Open DM .pkl file
     dm_header = open_MEC_tseries(dm_file)
@@ -65,15 +68,15 @@ if __name__ == '__main__':
     lastUnixTstep = np.int(last_tstep(dm_header))
     total_h5_seconds = lastUnixTstep - firstUnixTstep
     print(
-        f'\n\n{h5_name_parts[0]}\n{dm_name_parts[0]}:\n\tFirst Timestep = {first_tstep(dm_header):.0f}\n\tLast Timestep = {last_tstep(dm_header):.0f}')
+        f'\n\n{h5_name_parts[0]}\n{dm_name_parts[0]}:\n\t'
+        f'First Timestep = {first_tstep(dm_header):.0f}\n\tLast Timestep = {last_tstep(dm_header):.0f}')
 
-    ##  Load Photontable
-    table1 = pipe.Photontable(file_h5)
+    
 
     ## Check Datasets Match
 
     ## Make Image Cube
-    tcube1 = table1.getTemporalCube()  #firstSec=firstUnixTstep
+    print(f'\nMaking Total Intensity Image')
     cimg_start = time.time()
 
     cimg1 = table1.getPixelCountImage()['image']  # total integrated over the whole time
@@ -85,35 +88,37 @@ if __name__ == '__main__':
 
     ## Make Temporal Cube
     """
-    firstSec = seconds of first second in the cube, entered as number of seconds after start of the h5 file
-    integrationTime = seconds, duration of the cube (second of last tstep after firstSec)
+    firstSec = [seconds after first tstep in the h5 file] 
+    integrationTime = [seconds after first tstep in the h5 file], duration of the cube (second of last tstep after firstSec)
     timeslice = bin width of the timescale axis (integration time of each bin along z axis of cube)
     
     ** note here, you do not enter the times in unix timestamp, rather by actual seconds where 0 is the start of the
     h5 file
     """
-    # want to use timeslice=dm_header.ts.phase_integration_time but since it was messed up for CDI1 round of
-    # white light tests we will hand-tune it for now
-    tcube_start = time.time()
+    print(f'\nMaking Temporal Cube-One Cycle')
+    start_make_cube = time.time()
 
-    tcube_1cycle = table1.getTemporalCube(firstSec=0,
-                                    integrationTime=dm_header.ts.t_one_cycle,
+    tcube_1cycle = table1.getTemporalCube(firstSec=60,
+                                    # integrationTime=dm_header.ts.t_one_cycle,
+                                    integrationTime=90,
                                     timeslice=dm_header.ts.phase_integration_time)
 
-    tcube_end = time.time()
-    duration_make_tcube = tcube_end - tcube_start
-    print(f'time to make temporal cube is {duration_make_tcube/60:.2f} minutes')
-
-    tcube_start = time.time()
+    end_make_cube = time.time()
+    duration_make_tcube = end_make_cube - start_make_cube
+    print(f'time to make one-cycle temporal cube is {duration_make_tcube/60:.2f} minutes '
+          f'({duration_make_tcube:.2f} sec)')
 
     ## Temporal Cube full dataset
+    print(f'\nMaking Temporal Cube-Full h5 Duration')
+    start_make_cube = time.time()
     tcube_fullcycle = table1.getTemporalCube(firstSec=0,
                                           integrationTime=dm_header.ts.elapsed_time,
                                           timeslice=dm_header.ts.phase_integration_time)
 
-    tcube_end = time.time()
-    duration_make_tcube = tcube_end - tcube_start
-    print(f'time to make temporal cube is {duration_make_tcube / 60:.2f} minutes')
+    end_make_cube = time.time()
+    duration_make_tcube = end_make_cube - start_make_cube
+    print(f'time to make full h5 duration temporal cube is {duration_make_tcube / 60:.2f} minutes'
+          f'({duration_make_tcube:.2f} sec)')
 
 
     ## Saving Created Data
@@ -125,13 +130,14 @@ if __name__ == '__main__':
              meta=dm_header)
 
     # Save just the 1 cycle temporal cube
-    np.save(f'CDI2/CDI2_tcube_1cycle_{firstUnixTstep}', tcube_1cycle['cube'])
+    # np.save(f'CDI2/CDI2_tcube_1cycle_{firstUnixTstep}', tcube_1cycle['cube'])
+    np.save(f'SciOct2020_tcube_60sec_{firstUnixTstep}', tcube_1cycle['cube'])
 
     # Save the full cycles temporal cube
-    np.save(f'CDI2/CDI2_tcube_fullcycle_{firstUnixTstep}', tcube_fullcycle['cube'])
+    np.save(f'SciOct2020_tcube_fullcycle_{firstUnixTstep}', tcube_fullcycle['cube'])
 
     # Save just the pixel count img
-    np.save(f'CDI2/CDI2_piximg_{firstUnixTstep}', cimg1)
+    np.save(f'SciOct2020_piximg_{firstUnixTstep}', cimg1)
 
     # Pickling
 
