@@ -10,13 +10,13 @@ postprocess_MEC_CDI.py function.
 
 """
 
-
 import numpy as np
 import os
 import pickle
 import time
 import datetime
 from matplotlib import pyplot as plt
+import matplotlib.ticker as ticker
 from matplotlib.colors import LogNorm, SymLogNorm
 
 from mec_cdi import CDI_params, Slapper
@@ -33,21 +33,21 @@ def open_MEC_tseries(CDI_tseries='CDI_tseries.pkl'):
 def first_tstep(meta):
     """returns the first timestep time from pkl file. This is useful to tell the mkidpipeline when to start the obs"""
     first_t = meta.ts.cmd_tstamps[0]  #  [-1]
-    return (first_t - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
+    return (first_t - np.datetime64('1970-01-01T00:00:00')) / np.timedelta64(1, 's')
 
 
 def last_tstep(meta):
     """returns the end timestep time from pkl file. This is useful to tell the mkidpipeline when to stop the obs"""
     last_t = meta.ts.cmd_tstamps[-1]   # [-3]
-    return (last_t - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
+    return (last_t - np.datetime64('1970-01-01T00:00:00')) / np.timedelta64(1, 's')
 ##
 
 if __name__ == '__main__':
     ##
-    # file_h5 = '/data0/captainkay/mec/SciOct2020/1602049681.h5'
-    # dm_file = '/data0/captainkay/mec/SciOct2020/SciOct2020_config3_dummy.pkl'  #'/work/kkdavis/scratch/old/CDI_tseries_3-9-2020_hour0_min11.pkl'
-    file_h5 = '/data0/captainkay/mec/SciOct2020/1602049820.h5'
-    dm_file = '/data0/captainkay/mec/SciOct2020/SciOct2020_config3_dummy.pkl'
+    # file_h5 = '/data0/captainkay/mec/CDI2/1601962002.h5'
+    # dm_file = '/data0/captainkay/mec/CDI2/CDI_tseries_10-6-2020_hour5_min27.pkl'  #
+    file_h5 = '/data0/captainkay/mec/SciOct2020/1602048860.h5'
+    dm_file = '/data0/captainkay/mec/SciOct2020/SciOct2020_config1_dummy2.pkl'
     # Nifty File Name Extraction--makes nice print statements and gets unix timestamp name for file saving later
     r1 = os.path.basename(dm_file)
     dm_name_parts = os.path.splitext(r1)
@@ -55,7 +55,9 @@ if __name__ == '__main__':
     h5_name_parts = os.path.splitext(r2)
 
     ## Load tCube from saved file
-    # tcube1 = np.load('cdi1_timeCube3')
+    tcube1 = np.load('/work/kkdavis/cdi/ScienceOct2020/SciOct2020_tcube_0-30sec_1602072901.npy')
+    tcubeFull = np.load('/work/kkdavis/cdi/ScienceOct2020/SciOct2020_tcube_fullcycle_1602072901.npy')  # SciOct2020_tcube_fullcycle_1602072901.npy
+    cimg1 = np.load('/work/kkdavis/cdi/ScienceOct2020/SciOct2020_piximg_1602072901.npy')
     
     ##  Load Photontable
     table1 = pipe.Photontable(file_h5)
@@ -69,7 +71,7 @@ if __name__ == '__main__':
     total_h5_seconds = lastUnixTstep - firstUnixTstep
     print(
         f'\n\n{h5_name_parts[0]}\n{dm_name_parts[0]}:\n\t'
-        f'First Timestep = {first_tstep(dm_header):.0f}\n\tLast Timestep = {last_tstep(dm_header):.0f}')
+        f'First Timestep = {first_tstep(dm_header):.6f}\n\tLast Timestep = {last_tstep(dm_header):.0f}')
 
     
 
@@ -88,26 +90,32 @@ if __name__ == '__main__':
 
     ## Make Temporal Cube
     """
-    firstSec = [seconds after first tstep in the h5 file] 
+    firstSec = [seconds after first tstep in the h5 file]
     integrationTime = [seconds after first tstep in the h5 file], duration of the cube (second of last tstep after firstSec)
     timeslice = bin width of the timescale axis (integration time of each bin along z axis of cube)
-    
+
     ** note here, you do not enter the times in unix timestamp, rather by actual seconds where 0 is the start of the
     h5 file
     """
     print(f'\nMaking Temporal Cube-One Cycle')
     start_make_cube = time.time()
 
-    tcube_1cycle = table1.getTemporalCube(firstSec=60,
-                                    # integrationTime=dm_header.ts.t_one_cycle,
-                                    integrationTime=90,
-                                    timeslice=dm_header.ts.phase_integration_time)
+    tstamps_as_seconds = dm_header.ts.cmd_tstamps - dm_header.ts.cmd_tstamps[0]
+    tstamps_as_seconds = tstamps_as_seconds.astype('float64') / 1e9
+    cycle_Nsteps = np.int(dm_header.ts.t_one_cycle/dm_header.ts.phase_integration_time)
+
+    tcube_1cycle = table1.getTemporalCube(timeslices=tstamps_as_seconds[0:3*cycle_Nsteps])
+
+    # tcube_1cycle = table1.getTemporalCube(firstSec=0,
+    #                                 # integrationTime=dm_header.ts.t_one_cycle,
+    #                                 integrationTime=24,
+    #                                 timeslice=0.1)  # dm_header.ts.phase_integration_time
 
     end_make_cube = time.time()
     duration_make_tcube = end_make_cube - start_make_cube
     print(f'time to make one-cycle temporal cube is {duration_make_tcube/60:.2f} minutes '
           f'({duration_make_tcube:.2f} sec)')
-
+    #
     ## Temporal Cube full dataset
     print(f'\nMaking Temporal Cube-Full h5 Duration')
     start_make_cube = time.time()
@@ -131,16 +139,27 @@ if __name__ == '__main__':
 
     # Save just the 1 cycle temporal cube
     # np.save(f'CDI2/CDI2_tcube_1cycle_{firstUnixTstep}', tcube_1cycle['cube'])
-    np.save(f'SciOct2020_tcube_60sec_{firstUnixTstep}', tcube_1cycle['cube'])
+    np.save(f'SciOct2020_{firstUnixTstep}_tcube_firstcycles_test1', tcube_1cycle['cube'])
 
     # Save the full cycles temporal cube
-    np.save(f'SciOct2020_tcube_fullcycle_{firstUnixTstep}', tcube_fullcycle['cube'])
+    # np.save(f'SciOct2020_tcube_fullcycle_{firstUnixTstep}', tcube_fullcycle['cube'])
+    np.save(f'/data0/captainkay/mec/CDI2/CDI2_tcube_fullcycle_{firstUnixTstep}', tcube_fullcycle['cube'])
+
 
     # Save just the pixel count img
-    np.save(f'SciOct2020_piximg_{firstUnixTstep}', cimg1)
+    # np.save(f'SciOct2020_piximg_{firstUnixTstep}', cimg1)
+    np.save(f'CDI2_piximg_{firstUnixTstep}', cimg1)
 
     # Pickling
 
+    ## Recovery of Phase from timestream data
+    # Data
+    oc = tcube_1cycle['cube']
+    # oc = tcubeFull[:,:,0:52]     # tcube_1cycle['cube']
+    # oc = tcube_fullcycle['cube'][:, :, 0:52]
+
+    # Time Axis
+    tax = tstamps_as_seconds[0:3*cycle_Nsteps]
 
     ##
     # fig, ax = plt.subplots(nrows=1, ncols=1)
@@ -149,17 +168,128 @@ if __name__ == '__main__':
 
     fig, ax = plt.subplots(nrows=1, ncols=1)
     fig.suptitle(f'Total Pixel Count Image: {h5_name_parts[0]}')
-    ax.imshow(cimg1, interpolation='none', origin='lower')
+    ax.imshow(cimg1, interpolation='none')
     plt.show()
 
     fig, subplt = plt.subplots(nrows=2, ncols=3)
     fig.suptitle(f'Temporal Cube: {h5_name_parts[0]}')
     for ax, p in zip(subplt.flatten(), range(2*3)):
-        ax.imshow(tcube1['cube'][:,:,p], interpolation='none', origin='lower')
+        ax.imshow(oc, interpolation='none')
+        # ax.imshow(tcube_fullcycle['cube'][:,:,p], interpolation='none')
+
 
     plt.show()
 
+    ##
+    rowstart = 70
+    rowend = 140
+    colstart = 10
+    colend = 90
+    # rowstart = 73
+    # rowend = 140
+    # colstart = 46
+    # colend = 122
 
-    kittens=0
+    xr = slice(rowstart, rowend)
+    yr = slice(colstart, colend)
+    subarr = oc[xr, yr, :]
 
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+    fig.suptitle(f'Total Pixel Count Image: {h5_name_parts[0]}')
+    ax.imshow(np.sum(oc, axis=2), interpolation='none')  # [70:140,10:90,:]
+
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+    fig.suptitle(f'Total Pixel Count Image: {h5_name_parts[0]}{h5_name_parts[1]}\n'
+                 f'N probes={dm_header.ts.n_probes}, '
+                 f'N null steps={np.int(dm_header.ts.null_time/dm_header.ts.phase_integration_time)}')
+    ax.imshow(np.sum(subarr, axis=2), interpolation='none')  # [70:140,10:90,:]
+    ax.set_xticks(np.linspace(0, subarr.shape[1], 10, dtype=np.int))
+    ax.set_yticks(np.linspace(0, subarr.shape[0], 10, dtype=np.int))
+    ax.set_xticklabels(np.linspace(colstart, colend, 10, dtype=np.int))
+    ax.set_yticklabels(np.linspace(rowstart, rowend, 10, dtype=np.int))
+
+    plt.show()
+
+    ##
+    fig, axs = plt.subplots(4,1, figsize=(10,40))
+    labels = ["{0:.3f}".format(x) for x in np.linspace(tax[0], tax[-1], 10)]
+    fig.subplots_adjust(wspace=0.3, hspace=0.5)
+    ax1, ax2, ax3, ax4 = axs.flatten()
+    fig.suptitle('Timestreams from Selected Pixels\n'
+                 f'{h5_name_parts[0]}{h5_name_parts[1]},     N probes={dm_header.ts.n_probes}, '
+                 f'N null steps={np.int(dm_header.ts.null_time/dm_header.ts.phase_integration_time)}')
+    pix1 = [84, 38]
+    ax1.plot(oc[84, 38, :])
+    ax1.set_title(f'Pixel {pix1}, CDI Region')
+    ax1.set_xticks(np.linspace(0, len(tax), 10))
+    ax1.set_xticklabels(labels)
+
+    pix2 = [79, 19]
+    ax2.plot(range(oc.shape[2]), oc[79, 19, :])
+    ax2.set_title(f'Pixel {pix2}, Astrogrid')
+    ax2.set_xticks(np.linspace(0, len(tax), 10))
+    ax2.set_xticklabels(labels)
+
+    pix3 = [102, 27]
+    im3 = ax3.plot(oc[102, 27, :])
+    ax3.set_title(f'Pixel {pix3}, Non-CDI region')
+    ax3.set_xticks(np.linspace(0, len(tax), 10))
+    ax3.set_xticklabels(labels)
+
+    pix4 = [126, 40]
+    ax4.plot(oc[126, 40, :])
+    ax4.set_title(f'Pixel {pix4}, bottom CDI region')
+    ax4.set_xticks(np.linspace(0, len(tax), 10))
+    ax4.set_xticklabels(labels)
+    plt.show()
+
+"""
+    # ts1 = oc[81,79,:]
+    # ts2 = oc[90,97,:]
+    # ts3 = oc[102,101,:]
+    # ts4 = oc[110,110,:]
+    # tsc = ts1+ts2+ts3+ts4
+    # fig, ax = plt.subplots(nrows=1, ncols=1)
+    # ax.plot(tsc/4)
+    # plt.show()
+    pix1 = [84, 38]
+    ax1.plot(oc[84, 38, :])
+    ax1.set_title(f'Pixel {pix1}, CDI Region')
+
+    pix2 = [79, 19]
+    ax2.plot(range(oc.shape[2]), oc[79, 19, :])
+    ax2.set_title(f'Pixel {pix2}, Astrogrid')
+
+    pix3 = [108, 22]
+    im3 = ax3.plot(oc[108, 22, :])
+    ax3.set_title(f'Pixel {pix3}, Non-CDI region')
+
+    pix4 = [126, 40]
+    ax4.plot(oc[126, 40, :])
+    ax4.set_title(f'Pixel {pix4}, bottom CDI region')
+"""
+
+
+
+"""
+CDI2 Pixels
+pix1 = [90,82]
+    ax1.plot(oc[90,82,:])
+    ax1.set_title(f'Pixel {pix1}, CDI Region')
+
+    pix2 = [99,82]
+    ax2.plot(range(oc.shape[2]), oc[99,82,:])
+    ax2.set_title(f'Pixel {pix2}, CDI-speckle')
+
+    pix3 = [106,58]
+    im3 = ax3.plot(oc[106,58,:])
+    ax3.set_title(f'Pixel {pix3}, Non-CDI region')
+
+    pix4 = [99,52]
+    ax4.plot(oc[99,52,:])
+    ax4.set_title(f'Pixel {pix4}, Non-CDI region, speckle')
+
+
+
+"""
 
