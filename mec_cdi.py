@@ -47,9 +47,10 @@ class CDI_params():
     def __init__(self):
         # General
         self.plot = False  # False , flag to plot phase probe or not
-        self.save_to_disk = True
+        self.save_to_disk = False
 
         # Probe Dimensions (extent in pupil plane coordinates)
+        self.probe_ax = 'X'  # 'Y' # direction of the probe
         self.probe_amp = 0.2  # [um] probe amplitude, scale should be in units of actuator height limits
         self.probe_w = 15  # [actuator coordinates] width of the probe
         self.probe_h = 30  # [actuator coordinates] height of the probe
@@ -59,7 +60,7 @@ class CDI_params():
 
         # Phase Sequence of Probes
         self.phs_intervals = np.pi / 4  # [rad] phase interval over [0, 2pi]
-        self.phase_integration_time = 0.1  # [s]  How long in sec to apply each probe in the sequence
+        self.phase_integration_time = 0.01  # [s]  How long in sec to apply each probe in the sequence
         self.null_time = 1  # [s]  time between repeating probe cycles (data to be nulled using probe info)
         self.end_probes_after_time = 1.8 # 60 * 4.5  # [sec] probing repeats for x seconds until stopping
         self.end_probes_after_ncycles = 800  # [int] probe repeats until it has completed x full cycles
@@ -118,6 +119,7 @@ class CDI_params():
         out.ts = Slapper()
 
         # Probe Info
+        out.probe.direction = self.probe_ax
         out.probe.amp = self.probe_amp
         out.probe.width = self.probe_w
         out.probe.height = self.probe_h
@@ -192,8 +194,15 @@ def config_probe(cdi, theta, nact):
     y = np.linspace(-1/2-cdi.probe_shift[1]/nact, 1/2-cdi.probe_shift[1]/nact, nact, dtype=np.float32)
     X,Y = np.meshgrid(x, y)
 
+    if cdi.probe_ax == 'X' or cdi.probe_ax == 'x':
+        dir = X
+    elif cdi.probe_ax == 'Y' or cdi.probe_ax == 'y':
+        dir = Y
+    else:
+        raise ValueError('probe direction value not understood; must be string "X" or "Y"')
+
     probe = cdi.probe_amp * np.sinc(cdi.probe_w * X) * np.sinc(cdi.probe_h * Y) \
-            * np.sin(2*np.pi*cdi.probe_spacing*X + theta)
+            * np.sin(2*np.pi*cdi.probe_spacing*dir + theta)
 
     return probe
 
@@ -407,8 +416,9 @@ def send_flat(channel):
 
 if __name__ == '__main__':
     print(f"\nTesting CDI probe command cycle\n")
+    print(f'something more more  different')
     mecshm, out = MEC_CDI()
     #send_flat('dm00disp06')
+    print(f'n_cycles={out.ts.n_cycles}')
 
     dumm=0
-

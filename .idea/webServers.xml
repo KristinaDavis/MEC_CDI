@@ -2,15 +2,8 @@
 <project version="4">
   <component name="WebServers">
     <option name="servers">
-      <webServer id="d31ad191-8fea-4c7c-9fe0-2617f8db07ae" name="dark.physics.ucsb.edu">
+      <webServer id="d31ad191-8fea-4c7c-9fe0-2617f8db07ae" name="dark">
         <fileTransfer accessType="SFTP" host="dark.physics.ucsb.edu" port="22" sshConfigId="67c4d718-fd8e-4c20-a21c-fdbf6e047b8d" sshConfig="CaptainKay@dark.physics.ucsb.edu:22 password">
-          <advancedOptions>
-            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
-          </advancedOptions>
-        </fileTransfer>
-      </webServer>
-      <webServer id="828af44f-dbb2-47f8-aec9-babb10088a85" name="glados.physics.ucsb.edu">
-        <fileTransfer accessType="SFTP" host="glados.physics.ucsb.edu" port="22" sshConfigId="91a3ccb9-9160-495d-a76c-e21df408aa7c" sshConfig="kkdavis@glados.physics.ucsb.edu:22 password">
           <advancedOptions>
             <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
           </advancedOptions>

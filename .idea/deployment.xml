@@ -1,26 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="kkdavis@glados.physics.ucsb.edu:22" remoteFilesAllowedToDisappearOnAutoupload="false">
+  <component name="PublishConfigData" autoUpload="Always" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
-      <paths name="dark.physics.ucsb.edu">
+      <paths name="dark">
         <serverdata>
           <mappings>
             <mapping deploy="/scratch/CaptainKay/CDI" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>
-      <paths name="glados.physics.ucsb.edu">
+      <paths name="glados">
         <serverdata>
           <mappings>
-            <mapping deploy="/work/kkdavis/scratch" local="$PROJECT_DIR$" web="/" />
-          </mappings>
-        </serverdata>
-      </paths>
-      <paths name="kkdavis@glados.physics.ucsb.edu:22">
-        <serverdata>
-          <mappings>
-            <mapping deploy="/data0/captainkay/mec/CDI2" local="$USER_HOME$/mazinlab/MEC_data/CDI2" />
-            <mapping deploy="/work/kkdavis/cdi" local="$PROJECT_DIR$" />
+            <mapping deploy="/work/kkdavis/src/MEC_CDI" local="$PROJECT_DIR$" />
+            <mapping deploy="/work/kkdavis/src/MKIDPipeline" local="$USER_HOME$/mazinlab/MKIDPipeline" />
           </mappings>
         </serverdata>
       </paths>
