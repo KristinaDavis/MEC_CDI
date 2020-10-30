@@ -235,9 +235,49 @@ def plot_probe_cycle(out):
         ax.set_title(f"Probe " + r'$\theta$=' + f'{out.ts.phase_cycle[ix] / np.pi:.2f}' + r'$\pi$')
 
     warnings.simplefilter("ignore", category=UserWarning)
-    cbar_ax = fig.add_axes([0.93, 0.1, 0.02, 0.8])  # Add axes for colorbar @ position [left,bottom,width,height]
+    cbar_ax = fig.add_axes([0.91, 0.1, 0.02, 0.8])  # Add axes for colorbar @ position [left,bottom,width,height]
     cb = fig.colorbar(im, cax=cbar_ax, orientation='vertical')  #
     cb.set_label(r'$\mu$m', fontsize=12)
+
+
+def plot_probe_response_cycle(out):
+    """
+    plots one complete 0->2pi cycle of the phase probes as seen in the focal plane of MEC
+
+    :param out:
+    :return:
+    """
+    if out.ts.n_probes >= 4:
+        nrows = 2
+        ncols = out.ts.n_probes // 2
+        figheight = 6
+    else:
+        nrows = 1
+        ncols = out.ts.n_probes
+        figheight = 2
+
+    fig, subplot = plt.subplots(nrows, ncols, figsize=(14, figheight))
+    fig.subplots_adjust(left=0.02, hspace=.4, wspace=0.2)
+
+    fig.suptitle('DM Probe Cycle FP Phase Response')
+
+    for ax, ix in zip(subplot.flatten(), range(out.ts.n_probes)):
+        probe_ft = (1 / np.sqrt(2 * np.pi)) * np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(out.probe.DM_cmd_cycle[ix])))
+        nx = 140
+        ny = 146
+
+        fr = interpolate.interp2d(range(probe_ft.shape[0]), range(probe_ft.shape[0]), probe_ft.real, kind='cubic')
+        fi = interpolate.interp2d(range(probe_ft.shape[0]), range(probe_ft.shape[0]), probe_ft.imag, kind='cubic')
+        fr_interp = fr(np.linspace(0, probe_ft.shape[0], ny), np.linspace(0, probe_ft.shape[0], nx))
+        fi_interp = fi(np.linspace(0, probe_ft.shape[0], ny), np.linspace(0, probe_ft.shape[0], nx))
+
+        im = ax.imshow(np.arctan2(fi_interp, fr_interp), interpolation='none', cmap='hsv')
+        ax.set_title(f"Probe " + r'$\theta$=' + f'{out.ts.phase_cycle[ix] / np.pi:.2f}' + r'$\pi$')
+
+    warnings.simplefilter("ignore", category=UserWarning)
+    cbar_ax = fig.add_axes([0.91, 0.1, 0.02, 0.8])  # Add axes for colorbar @ position [left,bottom,width,height]
+    cb = fig.colorbar(im, cax=cbar_ax, orientation='vertical')  #
+    cb.set_label(r'Phase Angle $\theta$', fontsize=12)
 
 
 def plot_probe_response(out, ix):
@@ -439,9 +479,10 @@ def MEC_CDI():
 
     # Fig
     if cdi.plot:
-        # plot_probe_cycle(out)
+        plot_probe_cycle(out)
+        plot_probe_response_cycle(out)
         plot_probe_response(out, 0)
-        plot_quick_coord_check(out, 2)
+        # plot_quick_coord_check(out, 2)
         plt.show()
 
     return MECshm, out
@@ -475,4 +516,4 @@ if __name__ == '__main__':
     plot_quick_coord_check(out, 2)
     # send_flat('dm00disp06')
 
-    dumm=0
+    dumm=1000000

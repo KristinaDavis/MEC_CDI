@@ -6,7 +6,13 @@
         <remote-mappings server-id="python@sftp://CaptainKay@dark.physics.ucsb.edu:22/opt/anaconda3/envs/pipeline-new/bin/python3.7" />
         <remote-mappings server-id="python@sftp://kkdavis@glados.physics.ucsb.edu:22/home/kkdavis/.conda/envs/mec-cdi/bin/python3.7" />
         <remote-mappings server-id="python@sshConfig://kkdavis@glados.physics.ucsb.edu:22 password/home/kkdavis/.conda/envs/mec-cdi/bin/python3.7" />
-        <remote-mappings server-id="python@sftp://kkdavis@glados.physics.ucsb.edu:22/home/kkdavis/.conda/envs/cdi-pipe/bin/python3.7" />
+        <remote-mappings server-id="python@sftp://kkdavis@glados.physics.ucsb.edu:22/home/kkdavis/.conda/envs/cdi-pipe/bin/python3.7">
+          <settings>
+            <list>
+              <mapping local-root="$PROJECT_DIR$" remote-root="/work/kkdavis/src/MEC_CDI" />
+            </list>
+          </settings>
+        </remote-mappings>
       </list>
     </list>
   </component>
