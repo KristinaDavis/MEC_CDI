@@ -277,7 +277,7 @@ def plot_probe_response_cycle(out):
     warnings.simplefilter("ignore", category=UserWarning)
     cbar_ax = fig.add_axes([0.91, 0.1, 0.02, 0.8])  # Add axes for colorbar @ position [left,bottom,width,height]
     cb = fig.colorbar(im, cax=cbar_ax, orientation='vertical')  #
-    cb.set_label(r'Phase Angle $\theta$', fontsize=12)
+    cb.set_label(r'$\theta$', fontsize=12)
 
 
 def plot_probe_response(out, ix):

@@ -19,7 +19,7 @@ from matplotlib import pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib.colors import LogNorm, SymLogNorm
 
-from mec_cdi import CDI_params, Slapper
+from mec_cdi import plot_probe_response_cycle, plot_quick_coord_check, plot_probe_response, plot_probe_cycle
 import mkidpipeline as pipe
 
 
@@ -40,19 +40,30 @@ def last_tstep(meta):
     """returns the end timestep time from pkl file. This is useful to tell the mkidpipeline when to stop the obs"""
     last_t = meta.ts.cmd_tstamps[-1]   # [-3]
     return (last_t - np.datetime64('1970-01-01T00:00:00')) / np.timedelta64(1, 's')
+
+
+def datetime_to_unix(tstamp):
+    """returns a unix timestep given a np.datetime input timestamp"""
+    return (tstamp - np.datetime64('1970-01-01T00:00:00')) / np.timedelta64(1, 's')
 ##
+
 
 if __name__ == '__main__':
     ##
-    # file_h5 = '/data0/captainkay/mec/CDI2/1601962002.h5'
-    # dm_file = '/data0/captainkay/mec/CDI2/CDI_tseries_10-6-2020_hour5_min27.pkl'  #
-    file_h5 = '/data0/captainkay/mec/SciOct2020/1602048860.h5'
-    dm_file = '/data0/captainkay/mec/SciOct2020/SciOct2020_config1_dummy2.pkl'
+    target_name = ''  # None
+    # file_h5 = '/darkdata/kkdavis/mec/SciOct2020/1602048860.h5'
+    # dm_file = '/darkdata/kkdavis/mec/timingOct2020/CDI_tseries_10-20-2020_T21:23.pkl'  #
+    file_h5 = '/darkdata/captainkay/mec/SciOct2020/1602048860.h5'
+    dm_file = '/darkdata/captainkay/mec/SciOct2020/SciOct2020_config1_dummy2.pkl'
+
     # Nifty File Name Extraction--makes nice print statements and gets unix timestamp name for file saving later
     r1 = os.path.basename(dm_file)
+    dm_path = os.path.dirname(dm_file)
     dm_name_parts = os.path.splitext(r1)
     r2 = os.path.basename(file_h5)
     h5_name_parts = os.path.splitext(r2)
+    h5_path = os.path.dirname(file_h5)
+    scratch_path = '/work/kkdavis/scratch'
 
     ## Load tCube from saved file
     tcube1 = np.load('/work/kkdavis/cdi/ScienceOct2020/SciOct2020_tcube_0-30sec_1602072901.npy')
@@ -64,14 +75,13 @@ if __name__ == '__main__':
 
     ## Open DM .pkl file
     dm_header = open_MEC_tseries(dm_file)
-    # dm_header = open_MEC_tseries('/work/kkdavis/scratch/old/CDI_tseries_3-9-2020_hour0_min11.pkl')   # CDI_tseries_2-9-2020_hour23_min58.pkl
 
-    firstUnixTstep = np.int(first_tstep(dm_header))
-    lastUnixTstep = np.int(last_tstep(dm_header))
+    firstUnixTstep = first_tstep(dm_header)
+    lastUnixTstep = last_tstep(dm_header)
     total_h5_seconds = lastUnixTstep - firstUnixTstep
     print(
         f'\n\n{h5_name_parts[0]}\n{dm_name_parts[0]}:\n\t'
-        f'First Timestep = {first_tstep(dm_header):.6f}\n\tLast Timestep = {last_tstep(dm_header):.0f}')
+        f'First Timestep = {first_tstep(dm_header):.6f}\n\tLast Timestep = {last_tstep(dm_header):.6f}')
 
     
 
@@ -147,10 +157,29 @@ if __name__ == '__main__':
 
 
     # Save just the pixel count img
-    # np.save(f'SciOct2020_piximg_{firstUnixTstep}', cimg1)
-    np.save(f'CDI2_piximg_{firstUnixTstep}', cimg1)
+    # np.save(f'{h5_path}/SciOct2020_piximg_{h5_name_parts[0]}', cimg1)
+    np.save(f'{scratch_path}/{target_name}_{h5_name_parts[0]}_cimg', cimg1)
 
     # Pickling
+
+    #===============================================================
+    # Plotting
+    #===============================================================
+    ##  Pixel Count Image (cmg1)
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+    fig.suptitle(f'Total Pixel Count Image: {h5_name_parts[0]}')
+    ax.imshow(cimg1, interpolation='none')  # [70:140,10:90,:]
+
+    ## Probe Response (from mec_cdi.py)
+    plot_probe_response(dm_header, 0)
+    plot_probe_cycle(dm_header)
+    plot_probe_response_cycle(dm_header)
+    plot_quick_coord_check(dm_header, 0)
+
+    ## Beam Image
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+    ax.imshow(table1.beamImage, interpolation='none', origin='lower')
+    plt.show()
 
     ## Recovery of Phase from timestream data
     # Data
@@ -161,22 +190,13 @@ if __name__ == '__main__':
     # Time Axis
     tax = tstamps_as_seconds[0:3*cycle_Nsteps]
 
-    ##
-    # fig, ax = plt.subplots(nrows=1, ncols=1)
-    # ax.imshow(table1.beamImage, interpolation='none', origin='lower')
-    # plt.show()
 
-    fig, ax = plt.subplots(nrows=1, ncols=1)
-    fig.suptitle(f'Total Pixel Count Image: {h5_name_parts[0]}')
-    ax.imshow(cimg1, interpolation='none')
-    plt.show()
-
+    ## Total Pixel Count Image In Subregion (total temporal cube)
     fig, subplt = plt.subplots(nrows=2, ncols=3)
     fig.suptitle(f'Temporal Cube: {h5_name_parts[0]}')
-    for ax, p in zip(subplt.flatten(), range(2*3)):
+    for ax, p in zip(subplt.flatten(), range(2 * 3)):
         ax.imshow(oc, interpolation='none')
         # ax.imshow(tcube_fullcycle['cube'][:,:,p], interpolation='none')
-
 
     plt.show()
 
@@ -243,6 +263,23 @@ if __name__ == '__main__':
     ax4.set_xticklabels(labels)
     plt.show()
 
+    ##
+    # Plot timestream
+
+    diffs = np.zeros(dm_header.ts.n_cmds)
+    for it in range(dm_header.ts.n_cmds-1):
+        diffs[it] = (dm_header.ts.cmd_tstamps[it+1] - dm_header.ts.cmd_tstamps[it]) * 1e-9  # 1e-9 converts from ns to sec
+
+
+    fig, ax = plt.subplots(1,1)
+    # ax.plot(dm_header.ts.cmd_tstamps, np.ones(len(dm_header.ts.cmd_tstamps)),'r.')
+    ax.plot(diffs,'b.')
+    # ax.set_ylim(bottom=1.9e-1,top=2.1e-1)
+
+
+
+
+##
 """
     # ts1 = oc[81,79,:]
     # ts2 = oc[90,97,:]
