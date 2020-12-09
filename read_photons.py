@@ -21,6 +21,7 @@ from matplotlib.colors import LogNorm, SymLogNorm
 
 from cdi_plots import plot_probe_response_cycle, plot_quick_coord_check, plot_probe_response, plot_probe_cycle
 import mkidpipeline as pipe
+from mec_cdi import CDI_params, Slapper  # need this to open .pkl files
 
 
 def open_MEC_tseries(CDI_tseries='CDI_tseries.pkl'):
@@ -51,10 +52,10 @@ def datetime_to_unix(tstamp):
 if __name__ == '__main__':
     ##
     target_name = ''  # None
-    # file_h5 = '/darkdata/kkdavis/mec/SciOct2020/1602048860.h5'
-    # dm_file = '/darkdata/kkdavis/mec/timingOct2020/CDI_tseries_10-20-2020_T21:23.pkl'  #
-    file_h5 = '/darkdata/captainkay/mec/SciOct2020/1602048860.h5'
-    dm_file = '/darkdata/captainkay/mec/SciOct2020/SciOct2020_config1_dummy2.pkl'
+    file_h5 = '/darkdata/kkdavis/mec/SciOct2020/1602048860.h5'
+    dm_file = '/darkdata/kkdavis/mec/timingOct2020/CDI_tseries_12-9-2020_T21:33.pkl'  #
+    # file_h5 = ''
+    # dm_file = '/work/kkdavis/cdi/CDI_tseries_12-9-2020_T12:51.pkl'
 
     # Nifty File Name Extraction--makes nice print statements and gets unix timestamp name for file saving later
     r1 = os.path.basename(dm_file)
