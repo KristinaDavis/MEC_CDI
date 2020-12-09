@@ -19,7 +19,7 @@ from matplotlib import pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib.colors import LogNorm, SymLogNorm
 
-from mec_cdi import plot_probe_response_cycle, plot_quick_coord_check, plot_probe_response, plot_probe_cycle
+from cdi_plots import plot_probe_response_cycle, plot_quick_coord_check, plot_probe_response, plot_probe_cycle
 import mkidpipeline as pipe
 
 
