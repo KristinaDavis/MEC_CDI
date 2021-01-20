@@ -210,13 +210,12 @@ if __name__ == '__main__':
     fig, subplot = plt.subplots(nrows, ncols, figsize=(14, 25))
     fig.subplots_adjust(left=0.02, hspace=.4, wspace=0.2)
 
-    fig.suptitle(f'Timestreams from Selected Pixels of {h5_name_parts[0]}{h5_name_parts[1]}\n'
+    fig.suptitle(f'MEC CDI Probe Response of {h5_name_parts[0]}{h5_name_parts[1]}, target= {target_name}\n'
                  f' N probes={dm_header.ts.n_probes}, '
                  f'N null steps={np.int(dm_header.ts.null_time / dm_header.ts.phase_integration_time)}, '
                  f'integration time={dm_header.ts.phase_integration_time} sec')
 
     for ax, ix in zip(subplot.flatten(), range(dm_header.ts.n_probes)):
-
         im = ax.imshow(tcube_fullcycle['cube'][:,:,ix], interpolation='none')  # [55:140,25:125,ix], [:,:,ix],
         ax.set_title(f"Probe " + r'$\theta$=' + f'{dm_header.ts.phase_cycle[ix] / np.pi:.2f}' + r'$\pi$')
 
@@ -237,7 +236,7 @@ if __name__ == '__main__':
     Each full cycle of the probe has n_probes + 1 null step
     """
     # Plot Data Length
-    plt_cycles = 3  # plot a subset of the full length of the temporal cube
+    plt_cycles = 6  # plot a subset of the full length of the temporal cube
     plt_length = (dm_header.ts.n_probes+1)*plt_cycles
 
     # Data  oc=original cube
@@ -249,31 +248,31 @@ if __name__ == '__main__':
     tax = tstamps_from_h5_start[0:plt_length]
 
     # Removing Null Steps
-    oc_probe_only = np.delete(oc, np.arange(dm_header.ts.n_probes, oc.shape[2], plt_cycles), axis=2)
-    tax_probe_only = np.delete(tax, np.arange(dm_header.ts.n_probes, tax.size, plt_cycles))
+    oc_probe_only = np.delete(oc, np.arange(dm_header.ts.n_probes, oc.shape[2], plt_cycles+1), axis=2)
+    tax_probe_only = np.delete(tax, np.arange(dm_header.ts.n_probes, tax.size, plt_cycles+1))
 
-    ##
+
+    ## Pixel Count Image (Temporal Image Cube summed over oc length)
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+    fig.suptitle(f'Total Pixel Count Image: {h5_name_parts[0]}{h5_name_parts[1]}\n'
+                 f'{target_name}')
+    ax.imshow(np.sum(oc, axis=2), interpolation='none')  # [70:140,10:90,:]
+
+
+    ## Pixel Count Image (subarray)
     rowstart = 70
     rowend = 140
     colstart = 10
     colend = 90
-    # rowstart = 73
-    # rowend = 140
-    # colstart = 46
-    # colend = 122
 
     xr = slice(rowstart, rowend)
     yr = slice(colstart, colend)
     subarr = oc[xr, yr, :]
 
     fig, ax = plt.subplots(nrows=1, ncols=1)
-    fig.suptitle(f'Total Pixel Count Image: {h5_name_parts[0]}')
-    ax.imshow(np.sum(oc, axis=2), interpolation='none')  # [70:140,10:90,:]
-
-    fig, ax = plt.subplots(nrows=1, ncols=1)
     fig.suptitle(f'Total Pixel Count Image: {h5_name_parts[0]}{h5_name_parts[1]}\n'
-                 f'N probes={dm_header.ts.n_probes}, '
-                 f'N null steps={np.int(dm_header.ts.null_time/dm_header.ts.phase_integration_time)}')
+                 f'{target_name}')
+
     ax.imshow(np.sum(subarr, axis=2), interpolation='none')  # [70:140,10:90,:]
     ax.set_xticks(np.linspace(0, subarr.shape[1], 10, dtype=np.int))
     ax.set_yticks(np.linspace(0, subarr.shape[0], 10, dtype=np.int))
@@ -282,11 +281,11 @@ if __name__ == '__main__':
 
     plt.show()
 
-    ## Time Stream
-    # nc = oc_probe_only
-    # nax = tax_probe_only
-    nc = oc
-    nax = tax
+    ## Time Stream from Selected Pixels
+    nc = oc_probe_only
+    nax = tax_probe_only
+    # nc = oc
+    # nax = tax
 
     fig, axs = plt.subplots(4,1, figsize=(10,40))
     labels = ["{0:.3f}".format(x) for x in np.linspace(tax[0], tax[-1], 10)]
@@ -302,20 +301,20 @@ if __name__ == '__main__':
     ax1.set_xticks(np.linspace(0, len(nax), 10))
     ax1.set_xticklabels(labels)
 
-    pix2 = [79, 19]
-    ax2.plot(range(nc.shape[2]), nc[79, 19, :])
-    ax2.set_title(f'Pixel {pix2}, Astrogrid')
+    pix2 = [64, 76]
+    ax2.plot(range(nc.shape[2]), nc[64, 76, :])
+    ax2.set_title(f'Pixel {pix2}, CDI')
     ax2.set_xticks(np.linspace(0, len(nax), 10))
     ax2.set_xticklabels(labels)
 
-    pix3 = [102, 27]
-    im3 = ax3.plot(nc[102, 27, :])
+    pix3 = [72, 74]  # 102,27
+    im3 = ax3.plot(nc[70, 89, :])
     ax3.set_title(f'Pixel {pix3}, Non-CDI region')
     ax3.set_xticks(np.linspace(0, len(nax), 10))
     ax3.set_xticklabels(labels)
 
-    pix4 = [126, 40]
-    ax4.plot(nc[126, 40, :])
+    pix4 = [63, 129]  # 126, 40
+    ax4.plot(nc[129, 63, :])
     ax4.set_title(f'Pixel {pix4}, bottom CDI region')
     ax4.set_xticks(np.linspace(0, len(nax), 10))
     ax4.set_xticklabels(labels)
