@@ -51,14 +51,23 @@ def last_tstep(meta):
 def datetime_to_unix(tstamp):
     """returns a unix timestep given a np.datetime input timestamp"""
     return (tstamp - np.datetime64('1970-01-01T00:00:00')) / np.timedelta64(1, 's')
+
+
+def check_h5_duration(table):
+    photons = table.photonTable.read()
+    frst_photon = photons['Time'].min()
+    last_photon = photons['Time'].max()
+    print(f'Last Photon {last_photon/1e6:.2f} sec after h5 start')
+    return last_photon
+
 ##
 
 
 if __name__ == '__main__':
     ##
-    target_name = 'Jan2021_test2'  # None
-    dm_file = '/darkdata/kkdavis/mec/Jan2021/CDI_tseries_1-30-2021_T3:57.pkl'  #
-    file_h5 = '/work/kkdavis/pipeline_out/20210129/1611979028.h5'
+    target_name = 'Jan2021_test11'  # None
+    dm_file = '/darkdata/kkdavis/mec/Jan2021/CDI_tseries_1-30-2021_T4:32.pkl'  #
+    file_h5 = '/work/kkdavis/pipeline_out/20210129/1611981145.h5'
 
     # Nifty File Name Extraction--makes nice print statements and gets unix timestamp name for file saving later
     r1 = os.path.basename(dm_file)
@@ -117,6 +126,9 @@ if __name__ == '__main__':
 
     ##  Create Photontable from h5
     table1 = pipe.Photontable(file_h5)
+    last_sec = dm_header.ts.elapsed_time + tstamps_from_h5_start[0]
+    if last_sec > check_h5_duration(table1):
+        warnings.warn(f'\n{CCYN}CDI Test Exceedes h5 duration')
 
     ## Make Image Cube
     print(f'\nMaking Total Intensity Image')
@@ -156,10 +168,14 @@ if __name__ == '__main__':
           f'({duration_make_tcube:.2f} sec)')
     #
     ## Temporal Cube full dataset--regular bins
+    """
+    integration time is a misnomer for getTemporalCube. What it really wants is the last timestep that you want 
+    included in the cube, in units of seconds after the h5 file start
+    """
     print(f'\nMaking Temporal Cube-Full h5 Duration, bin spacing set by probe integration time')
     start_make_cube = time.time()
     tcube_regcycle = table1.getTemporalCube(firstSec=tstamps_from_h5_start[0],
-                                          integrationTime=dm_header.ts.elapsed_time,
+                                          integrationTime=last_sec,
                                           timeslice=dm_header.ts.phase_integration_time)
 
     end_make_cube = time.time()
@@ -270,7 +286,7 @@ if __name__ == '__main__':
         n_nulls = dm_header.ts.null_time / dm_header.ts.phase_integration_time
         if n_nulls.is_integer():
             n_nulls = np.int(n_nulls)
-            plt_length = 42  #(dm_header.ts.n_probes + n_nulls) * plt_cycles
+            plt_length = (dm_header.ts.n_probes + n_nulls) * plt_cycles
             # oc = tcube_regcycle[:, :, 0:plt_length]  # if loading form npz
             oc = tcube_regcycle['cube'][:, :, 0:plt_length]
             # oc = tcube_regcycle_bigger[:, :, 0:plt_length]
@@ -383,11 +399,17 @@ if __name__ == '__main__':
                  f' N probes={dm_header.ts.n_probes}, '
                  f'N null steps={np.int(dm_header.ts.null_time / dm_header.ts.phase_integration_time)}, '
                  f'integration time={dm_header.ts.phase_integration_time} sec')
-    # Test 8
-    pix1 = [104, 47]
-    pix2 = [121, 52]  #
-    pix3 = [86, 61]  #
-    pix4 = [90, 50]  #
+    # # Test 1
+    # pix1 = [104, 47]
+    # pix2 = [121, 52]  #
+    # pix3 = [86, 61]  #
+    # pix4 = [90, 50]  #
+
+    # Test 11
+    pix1 = [92, 40]
+    pix2 = [106, 53]  #
+    pix3 = [74, 47]  #
+    pix4 = [128, 57]  #
 
     for s, l in zip((probe_mask, ~probe_mask), label):
         ax1.plot(tax[s], oc[pix1[0], pix1[1], s], '.', label=l)
@@ -440,8 +462,6 @@ if __name__ == '__main__':
     for ix in range(plt_length):  #
         if (ix / (dm_header.ts.n_probes + n_nulls)).is_integer() and ix != 0:
             phs_cnt += (dm_header.ts.n_probes + n_nulls)
-            print('Increasing Phase Counter')
-        print(f'ix={ix}, phs_cnt={phs_cnt}')
         if probe_mask[ix]:
             phase = f'{dm_header.ts.phase_cycle[ix-phs_cnt] / np.pi:.2f}'
             color = 'k'
