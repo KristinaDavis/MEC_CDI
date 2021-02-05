@@ -56,11 +56,9 @@ def datetime_to_unix(tstamp):
 
 if __name__ == '__main__':
     ##
-    target_name = 'Dec2020_test9'  # None
-    # file_h5 = '/darkdata/kkdavis/mec/SciOct2020/1602048860.h5'
-    # dm_file = '/work/kkdavis/cdi/CDI_tseries_12-9-2020_T12:51.pkl'
-    dm_file = '/darkdata/kkdavis/mec/Dec2020/CDI_tseries_12-14-2020_T22:33.pkl'  #
-    file_h5 = '/work/kkdavis/pipeline_out/20201214/1607985063.h5'
+    target_name = 'Jan2021_test2'  # None
+    dm_file = '/darkdata/kkdavis/mec/Jan2021/CDI_tseries_1-30-2021_T3:57.pkl'  #
+    file_h5 = '/work/kkdavis/pipeline_out/20210129/1611979028.h5'
 
     # Nifty File Name Extraction--makes nice print statements and gets unix timestamp name for file saving later
     r1 = os.path.basename(dm_file)
@@ -83,17 +81,29 @@ if __name__ == '__main__':
         f'First Timestep = {first_tstep(dm_header):.6f}\n\tLast Timestep = {last_tstep(dm_header):.6f}\n'
         f'Duration = {dm_header.ts.elapsed_time/60:.2f} min ({dm_header.ts.elapsed_time:.4f} sec)')
 
+    ## Printing DM Info
+    print(f'\nDM Probe Series Info\n\t'
+          f'Probe Dir {dm_header.probe.direction}\n\t'
+          f'Probe phase intervals {dm_header.probe.phs_interval/np.pi:.2f}pi\n\t'
+          f'Timing: Phase Integration {dm_header.ts.phase_integration_time} sec, Null Time {dm_header.ts.null_time} sec\n\t'
+          f'# probes {dm_header.ts.n_probes}, # Cycles: {dm_header.ts.n_cycles}, # Commands: {dm_header.ts.n_cmds} \n\t'
+          f'Time for one cycle: {dm_header.ts.t_one_cycle}\n\t'
+          f'Total Elapsed Time: {dm_header.ts.elapsed_time/60:.2f} min ({dm_header.ts.elapsed_time:.4f} sec)')
+
     ## Load tCube from saved file
     tcube1 = np.load('/work/kkdavis/cdi/ScienceOct2020/SciOct2020_tcube_0-30sec_1602072901.npy')
     tcube_fullcycle = np.load(f'{dm_path}/{target_name}_{h5_name_parts[0]}_temporalCube_regBins.npy', allow_pickle=True)  # SciOct2020_tcube_fullcycle_1602072901.npy
     tcube_regcycle = np.load(f'{dm_path}/{target_name}_{h5_name_parts[0]}_temporalCube_irregBins.npy', allow_pickle=True)
     cimg1 = np.load('/work/kkdavis/cdi/ScienceOct2020/SciOct2020_piximg_1602072901.npy')
-    
-    ##  Create Photontable from h5
-    table1 = pipe.Photontable(file_h5)
-
 
     ## Check Datasets Match
+    if float(h5_name_parts[0])*1e9 > dm_header.ts.cmd_tstamps[-1].astype('float') or \
+        float(h5_name_parts[0])*1e9 < (dm_header.ts.cmd_tstamps[0].astype('float')-5e10):
+        warnings.warn(f"{CCYN}h5 file does not match DM commanded range{CEND}\n"
+                      f"{h5_name_parts[0]}.h5 not within "
+                      f"{first_tstep(dm_header)-5:.0f} to {last_tstep(dm_header):.0f}")
+    else:
+        print(f'\n\tDatasets match\n')
 
     ## Timestamp Conversion & Syncing
     tstamps_as_unix = dm_header.ts.cmd_tstamps.astype('float64') / 1e9
@@ -104,6 +114,9 @@ if __name__ == '__main__':
 
     tstamps_from_tstamps_start = dm_header.ts.cmd_tstamps - dm_header.ts.cmd_tstamps[0]
     tstamps_from_tstamps_start = tstamps_from_tstamps_start.astype('float64') / 1e9
+
+    ##  Create Photontable from h5
+    table1 = pipe.Photontable(file_h5)
 
     ## Make Image Cube
     print(f'\nMaking Total Intensity Image')
@@ -128,14 +141,14 @@ if __name__ == '__main__':
     print(f'\nMaking Temporal Cube-One Cycle')
     start_make_cube = time.time()
 
-    cycle_Nsteps = np.int(dm_header.ts.t_one_cycle/dm_header.ts.phase_integration_time)
+    cycle_Nsteps = np.int(dm_header.ts.t_one_cycle/dm_header.ts.probe_integration_time)
 
     tcube_1cycle = table1.getTemporalCube(timeslices=tstamps_from_h5_start[0:3*cycle_Nsteps])
 
     # tcube_1cycle = table1.getTemporalCube(firstSec=0,
     #                                 # integrationTime=dm_header.ts.t_one_cycle,
     #                                 integrationTime=24,
-    #                                 timeslice=0.1)  # dm_header.ts.phase_integration_time
+    #                                 timeslice=0.1)  # dm_header.ts.probe_integration_time
 
     end_make_cube = time.time()
     duration_make_tcube = end_make_cube - start_make_cube
@@ -166,11 +179,12 @@ if __name__ == '__main__':
 
     ## Saving Created Data
     # Save several together
-    np.savez(f'CDI2/CDI2_config_{firstUnixTstep}',
-             table=table1,
-             tcube_1c=tcube_1cycle['cube'],
-             tcube_fc=tcube_fullcycle['cube'],
-             meta=dm_header)
+    np.savez(f'{dm_path}/{target_name}_{h5_name_parts[0]}_processed',
+             tcube_regcycle=tcube_regcycle['cube'],
+             tcube_fullcycle=tcube_fullcycle['cube'],
+             dm_header=dm_header,
+             file_h5=file_h5,
+             dm_file=dm_file)
 
     # Save just the 1 cycle temporal cube
     np.save(f'SciOct2020_{firstUnixTstep}_tcube_firstcycles_test1', tcube_1cycle['cube'])
@@ -214,8 +228,8 @@ if __name__ == '__main__':
 
     fig.suptitle(f'MEC CDI Probe Response of {h5_name_parts[0]}{h5_name_parts[1]}, target= {target_name}\n'
                  f' N probes={dm_header.ts.n_probes}, '
-                 f'N null steps={np.int(dm_header.ts.null_time / dm_header.ts.phase_integration_time)}, '
-                 f'integration time={dm_header.ts.phase_integration_time} sec')
+                 f'N null steps={np.int(dm_header.ts.null_time / dm_header.ts.probe_integration_time)}, '
+                 f'integration time={dm_header.ts.probe_integration_time} sec')
 
     for ax, ix in zip(subplot.flatten(), range(dm_header.ts.n_probes)):
         im = ax.imshow(tcube_fullcycle['cube'][:,:,ix], interpolation='none')  # [55:140,25:125,ix], [:,:,ix],
@@ -230,13 +244,13 @@ if __name__ == '__main__':
     ## Separating Probes & Null Steps by Temporal Cube type
     """
     because of the way mec_cdi.py is structured, the null step is of arbitrary length compared to the length of the 
-    integration time of each probe pattern. thus, dm_header.ts.phase_integration_time ~= dm_header.ts.null_time, 
+    integration time of each probe pattern. thus, dm_header.ts.probe_integration_time ~= dm_header.ts.null_time, 
     and there is no check to make sure the null time is an integer number of phase integration times. This leads to 
-    the null time being a single long step rather than an integer number of timesteps of the phase_integration_time. 
+    the null time being a single long step rather than an integer number of timesteps of the probe_integration_time. 
     
     We can treat this in two ways. The first is to make the temporal cube with regular bin spacing, meaning that when
     the temporal cube is made, we give it the first second of the probe applied to the DM and then make regular spaced
-    bins from then on (which assumes the time the null was applied is n*dm_header.ts.phase_integration_time). The other
+    bins from then on (which assumes the time the null was applied is n*dm_header.ts.probe_integration_time). The other
     way we can handle this is to make irregular spaced bins, meaning that when the temporal cube is made, we send in
     each timestep that we record from the DM output, which gives us a cut down to the us and is more accurate. However, 
     since there was only one 'null command', there is only one 'null timestep'. This is only bothersome when you want 
@@ -248,7 +262,7 @@ if __name__ == '__main__':
     otherwise it a full cycle of the probe has n_probes + 1 null step
     """
     # Plot Data Length
-    plt_cycles = 6  # plot a subset of the full length of the temporal cube
+    plt_cycles = dm_header.ts.n_cycles  # plot a subset of the full length of the temporal cube
     bins = 'regular'  # 'regular' or 'irregular'
 
     # oc -> original cube; tax -> time axis
@@ -256,10 +270,11 @@ if __name__ == '__main__':
         n_nulls = dm_header.ts.null_time / dm_header.ts.phase_integration_time
         if n_nulls.is_integer():
             n_nulls = np.int(n_nulls)
-            plt_length = (dm_header.ts.n_probes + n_nulls) * plt_cycles
+            plt_length = 42  #(dm_header.ts.n_probes + n_nulls) * plt_cycles
             # oc = tcube_regcycle[:, :, 0:plt_length]  # if loading form npz
             oc = tcube_regcycle['cube'][:, :, 0:plt_length]
-            tax = np.linspace(tstamps_from_h5_start[0], tstamps_from_h5_start[plt_length],
+            # oc = tcube_regcycle_bigger[:, :, 0:plt_length]
+            tax = np.linspace(tstamps_from_h5_start[0], tstamps_from_h5_start[-1],  # [plt_length]
                             plt_length)
         else:
             bins = 'irregular'
@@ -277,16 +292,13 @@ if __name__ == '__main__':
     # # Separating Probes & Null Steps
     probe_mask = np.append(np.repeat(True, dm_header.ts.n_probes), np.repeat(False, n_nulls))
     probe_mask = np.tile(probe_mask, plt_cycles)
-    # oc_probes = oc[:, :, probe_mask]
-    # oc_nulls = oc[:, :, ~probe_mask]
-    # tax_probes = tax[probe_mask]
-    # tax_nulls = tax[~probe_mask]
+    probe_mask = probe_mask[0:plt_length]
 
     ## Pixel Count Image (Temporal Image Cube summed over oc length)
     fig, ax = plt.subplots(nrows=1, ncols=1)
     fig.suptitle(f'Total Pixel Count Image: {h5_name_parts[0]}{h5_name_parts[1]}\n'
                  f'{target_name}')
-    ax.imshow(np.sum(oc, axis=2), interpolation='none')  # [70:140,10:90,:]
+    ax.imshow(np.sum(oc, axis=2).T, interpolation='none')  # [70:140,10:90,:]
 
     ## Pixel Count Image Subarray, summed over full plot length
     rowstart = 60
@@ -319,13 +331,13 @@ if __name__ == '__main__':
 
 
     ## Pixel Count Image Sequence (subarray)
-    rowstart = 60
-    rowend = 140
+    rowstart = 15
+    rowend = 125
     colstart = 30
-    colend = 110
+    colend = 140
 
-    xr = slice(rowstart, rowend)
-    yr = slice(colstart, colend)
+    xr = slice(colstart, colend)
+    yr = slice(rowstart, rowend)
     subarr = oc[xr, yr, :]
 
     if dm_header.ts.n_probes >= 4:
@@ -345,10 +357,10 @@ if __name__ == '__main__':
                  f'N null steps={np.int(dm_header.ts.null_time / dm_header.ts.phase_integration_time)}, '
                  f'integration time={dm_header.ts.phase_integration_time} sec')
     for ax, ix in zip(subplot.flatten(), range(dm_header.ts.n_probes)):
-        im = ax.imshow(subarr[:,:,ix], interpolation='none')  # [70:140,10:90,:]
+        im = ax.imshow(subarr[:,:,ix].T, interpolation='none')  # [70:140,10:90,:]
         ax.set_title(f"Probe " + r'$\theta$=' + f'{dm_header.ts.phase_cycle[ix] / np.pi:.2f}' + r'$\pi$')
-        ax.set_xticks(np.linspace(0, subarr.shape[1], 10, dtype=np.int))
-        ax.set_yticks(np.linspace(0, subarr.shape[0], 10, dtype=np.int))
+        ax.set_xticks(np.linspace(0, subarr.shape[0], 10, dtype=np.int))
+        ax.set_yticks(np.linspace(0, subarr.shape[1], 10, dtype=np.int))
         ax.set_xticklabels(np.linspace(colstart, colend, 10, dtype=np.int))
         ax.set_yticklabels(np.linspace(rowstart, rowend, 10, dtype=np.int))
 
@@ -371,25 +383,14 @@ if __name__ == '__main__':
                  f' N probes={dm_header.ts.n_probes}, '
                  f'N null steps={np.int(dm_header.ts.null_time / dm_header.ts.phase_integration_time)}, '
                  f'integration time={dm_header.ts.phase_integration_time} sec')
-    # # Test 8
-    # pix1 = [107, 53]
-    # pix2 = [121, 52]  #
-    # pix3 = [86, 61]  #
-    # pix4 = [90, 50]  #
-
-    # Test 9
-    pix1 = [107, 53]
-    pix2 = [77, 59]  #
-    pix3 = [71, 50]  # Not particularly Speckly
-    pix4 = [97, 52]  #
-
-    # # Test 7
-    # pix1 = [105, 51]
-    # pix2 = [64, 76]
-
+    # Test 8
+    pix1 = [104, 47]
+    pix2 = [121, 52]  #
+    pix3 = [86, 61]  #
+    pix4 = [90, 50]  #
 
     for s, l in zip((probe_mask, ~probe_mask), label):
-        ax1.plot(tax[s], oc[pix1[0],pix1[1],s], '.', label=l)
+        ax1.plot(tax[s], oc[pix1[0], pix1[1], s], '.', label=l)
         ax1.legend()
     ax1.set_title(f'Pixel {pix1}, CDI')
 
@@ -422,13 +423,13 @@ if __name__ == '__main__':
     ## Animation
     import matplotlib.animation as animation
 
-    rowstart = 70
-    rowend = 140
-    colstart = 10
-    colend = 90
+    rowstart = 15
+    rowend = 125
+    colstart = 30
+    colend = 140
 
-    xr = slice(rowstart, rowend)
-    yr = slice(colstart, colend)
+    xr = slice(colstart, colend)
+    yr = slice(rowstart, rowend)
     subarr = oc[xr, yr, :]
 
     fig, ax = plt.subplots(1, 1, figsize=(10, 10))
@@ -437,16 +438,18 @@ if __name__ == '__main__':
     ims = []
     phs_cnt = 0
     for ix in range(plt_length):  #
+        if (ix / (dm_header.ts.n_probes + n_nulls)).is_integer() and ix != 0:
+            phs_cnt += (dm_header.ts.n_probes + n_nulls)
+            print('Increasing Phase Counter')
+        print(f'ix={ix}, phs_cnt={phs_cnt}')
         if probe_mask[ix]:
             phase = f'{dm_header.ts.phase_cycle[ix-phs_cnt] / np.pi:.2f}'
             color = 'k'
         else:
             phase = f' NULL '
             color = 'cyan'
-        if (ix/(dm_header.ts.n_probes+n_nulls-1)).is_integer() and ix != 0:
-            phs_cnt += (dm_header.ts.n_probes+n_nulls)
 
-        im = ax.imshow(subarr[:, :, ix])  # [70:140,10:90,:]
+        im = ax.imshow(subarr[:, :, ix].T)  # [70:140,10:90,:]
         ttl = plt.text(0.5, 1.01, f"{target_name}, file {h5_name_parts[0]}{h5_name_parts[1]}\n"
                        f' N probes={dm_header.ts.n_probes}, '
                        f'N null steps={np.int(dm_header.ts.null_time / dm_header.ts.phase_integration_time)}, '
@@ -464,7 +467,6 @@ if __name__ == '__main__':
         # cb.set_label(f'Counts', fontsize=12)
 
         ims.append([im, ttl])
-
 
     ani = animation.ArtistAnimation(fig, ims, interval=1000, repeat_delay=1000, blit=False)  # time in miliseconds 0.001 s
     # ani.save(f'{dm_path}/{target_name}_withRegularSpacedNulls.gif')
