@@ -14,6 +14,7 @@ from matplotlib.colors import LogNorm, SymLogNorm
 import warnings
 from mpl_toolkits import axes_grid1
 from mpl_toolkits.axes_grid1 import ImageGrid
+from matplotlib.collections import LineCollection
 
 
 # #########################################################################################################
@@ -43,7 +44,7 @@ def plot_probe_cycle(out):
 
     for ax, ix in zip(subplot.flatten(), range(out.ts.n_probes)):
         # im = ax.imshow(self.DM_probe_series[ix], interpolation='none', origin='lower')
-        im = ax.imshow(out.probe.DM_cmd_cycle[ix], interpolation='none', origin='lower',
+        im = ax.imshow(out.probe.DM_cmd_cycle[ix], interpolation='none',# origin='lower',
                        vmin=-out.probe.amp, vmax=out.probe.amp)
         ax.set_title(f"Probe " + r'$\theta$=' + f'{out.ts.phase_cycle[ix] / np.pi:.2f}' + r'$\pi$')
 
@@ -288,3 +289,147 @@ def add_colorbar(im, aspect=20, pad_fraction=0.5, **kwargs):
     cax = divider.append_axes("right", size=width, pad=pad)
     plt.sca(current_ax)
     return im.axes.figure.colorbar(im, cax=cax, **kwargs)
+
+
+def scale_lD(samp, fn):
+    """
+    scales the focal plane into lambda/D units. Can use proper.prop_get_fratio to get the f_ratio that proper calculates
+    at the focal plane. First convert the sampling in m/pix to rad/pix, then scale by the center wavelength lambda/D
+    [rad].
+
+    :param samp: sampling of the wavefront in m/pix
+    :param fn: f# (focal ratio) of the beam in the focal plane
+    :return:
+    """
+    wvls = np.linspace(ap.wvl_range[0], ap.wvl_range[1], ap.n_wvl_init)
+    cent = np.int(np.floor(ap.n_wvl_final / 2))
+
+    if not samp.shape:
+        pass                # sampling is a single value
+    else:
+        samp = samp[cent]  # sampling at the center wavelength
+
+    # Convert to Angular Sampling Units via platescale
+    fl = fn * tp.entrance_d
+    rad_scale = samp / fl
+
+    cw = wvls[cent]  # center wavelength
+    res = cw / tp.entrance_d
+
+    tic_spacing = np.linspace(0, sp.maskd_size, 5)  # 5 (number of ticks) is set by hand, arbitrarily chosen
+    tic_labels = np.round(np.linspace(-rad_scale * sp.maskd_size / 2 , rad_scale * sp.maskd_size / 2 , 5)/res)  # nsteps must be same as tic_spacing
+    tic_spacing[0] = tic_spacing[0] + 1  # hack for edge effects
+    tic_spacing[-1] = tic_spacing[-1] - 1  # hack for edge effects
+
+    axlabel = (r'$\lambda$' + f'/D')
+
+    return tic_spacing, tic_labels, axlabel
+
+
+def get_fp_mask(cdi, thresh=1e-7):
+    """
+    returns a mask of the CDI probe pattern in focal plane coordinates
+
+    :param cdi: structure containing all CDI probe parameters
+    :param thresh: intensity threshold for determining probed coordinates
+    :return: fp_mask: boolean array where True marks the probed coordinates
+             imsk, jmsk:
+             irng, jrng:
+
+    """
+    nx = sp.grid_size
+    ny = sp.grid_size
+    dm_act = cdi.nact
+
+    fftA = (1 / np.sqrt(2 * np.pi) *
+            np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(cdi.DM_probe_series[0]))))
+
+    Ar = interpolate.interp2d(range(dm_act), range(dm_act), fftA.real, kind='cubic')
+    Ai = interpolate.interp2d(range(dm_act), range(dm_act), fftA.imag, kind='cubic')
+    ArI = Ar(np.linspace(0, dm_act, ny), np.linspace(0, dm_act, nx))
+    AiI = Ai(np.linspace(0, dm_act, ny), np.linspace(0, dm_act, nx))
+
+    fp_probe = np.sqrt(ArI**2 + AiI**2)
+    # fp_mask = (fp_probe > 1e-7)
+    # (imsk, jmsk) = (fp_probe > 1e-7).nonzero()
+    fp_mask = (fp_probe > thresh)
+    (imsk, jmsk) = (fp_probe > thresh).nonzero()
+
+    irng = range(min(imsk), max(imsk), 1)
+    jrng = range(min(jmsk), max(jmsk), 1)
+
+    edges = get_all_edges(bool_img=fp_mask.T)
+    edges = edges - 0.5  # convert indices to coordinates; TODO adjust according to image extent
+    outlines = close_loop_edges(edges=edges)
+
+    # imx = max(irng)-1  # -1 is to get index values for plotting purposes
+    # imn = min(irng)-1
+    # jmx = max(jrng)-1
+    # jmn = min(jrng)-1
+
+    return fp_mask, outlines, imsk, jmsk, irng, jrng
+
+
+def get_all_edges(bool_img):
+    """
+    Get a list of all edges (where the value changes from True to False) in the 2D boolean image.
+    The returned array edges has he dimension (n, 2, 2).
+    Edge i connects the pixels edges[i, 0, :] and edges[i, 1, :].
+    Note that the indices of a pixel also denote the coordinates of its lower left corner.
+    """
+    edges = []
+    ii, jj = np.nonzero(bool_img)
+    for i, j in zip(ii, jj):
+        # North
+        if j == bool_img.shape[1]-1 or not bool_img[i, j+1]:
+            edges.append(np.array([[i, j+1],
+                                   [i+1, j+1]]))
+        # East
+        if i == bool_img.shape[0]-1 or not bool_img[i+1, j]:
+            edges.append(np.array([[i+1, j],
+                                   [i+1, j+1]]))
+        # South
+        if j == 0 or not bool_img[i, j-1]:
+            edges.append(np.array([[i, j],
+                                   [i+1, j]]))
+        # West
+        if i == 0 or not bool_img[i-1, j]:
+            edges.append(np.array([[i, j],
+                                   [i, j+1]]))
+
+    if not edges:
+        return np.zeros((0, 2, 2))
+    else:
+        return np.array(edges)
+
+
+def close_loop_edges(edges):
+    """
+    Combine thee edges defined by 'get_all_edges' to closed loops around objects.
+    If there are multiple disconnected objects a list of closed loops is returned.
+    Note that it's expected that all the edges are part of exactly one loop (but not necessarily the same one).
+    """
+    loop_list = []
+    while edges.size != 0:
+
+        loop = [edges[0, 0], edges[0, 1]]  # Start with first edge
+        edges = np.delete(edges, 0, axis=0)
+
+        while edges.size != 0:
+            # Get next edge (=edge with common node)
+            ij = np.nonzero((edges == loop[-1]).all(axis=2))
+            if ij[0].size > 0:
+                i = ij[0][0]
+                j = ij[1][0]
+            else:
+                loop.append(loop[0])
+                # Uncomment to to make the start of the loop invisible when plotting
+                # loop.append(loop[1])
+                break
+
+            loop.append(edges[i, (j + 1) % 2, :])
+            edges = np.delete(edges, i, axis=0)
+
+        loop_list.append(np.array(loop))
+
+    return loop_list
