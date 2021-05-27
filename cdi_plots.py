@@ -43,9 +43,8 @@ def plot_probe_cycle(out):
     fig.suptitle('DM Probe Cycle')
 
     for ax, ix in zip(subplot.flatten(), range(out.ts.n_probes)):
-        # im = ax.imshow(self.DM_probe_series[ix], interpolation='none', origin='lower')
-        im = ax.imshow(out.probe.DM_cmd_cycle[ix], interpolation='none',# origin='lower',
-                       vmin=-out.probe.amp, vmax=out.probe.amp)
+        im = ax.imshow(out.probe.DM_cmd_cycle[ix], interpolation='none', #origin='lower',
+                       vmin=-np.min(out.probe.amp), vmax=np.max(out.probe.amp))
         ax.set_title(f"Probe " + r'$\theta$=' + f'{out.ts.phase_cycle[ix] / np.pi:.2f}' + r'$\pi$')
 
     warnings.simplefilter("ignore", category=UserWarning)
@@ -361,11 +360,6 @@ def get_fp_mask(cdi, thresh=1e-7):
     edges = get_all_edges(bool_img=fp_mask.T)
     edges = edges - 0.5  # convert indices to coordinates; TODO adjust according to image extent
     outlines = close_loop_edges(edges=edges)
-
-    # imx = max(irng)-1  # -1 is to get index values for plotting purposes
-    # imn = min(irng)-1
-    # jmx = max(jrng)-1
-    # jmn = min(jrng)-1
 
     return fp_mask, outlines, imsk, jmsk, irng, jrng
 
