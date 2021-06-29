@@ -75,10 +75,8 @@ def list_keys(file):
 
 def find_lt(a, x):
     'Find rightmost value less than x'
-    i = bisect.bisect_left(a, x)
-    if i:
-        return a[i-1]
-    raise ValueError
+    i = bisect.bisect_right(a, x)
+    return i-1
 
 
 ##
@@ -291,20 +289,20 @@ if __name__ == '__main__':
     # oc -> original cube; tax -> time axis
     if bins == 'regular':
         n_nulls = dm_header.ts.null_time / dm_header.ts.phase_integration_time
-        n_nulls= 6.
-        if n_nulls.is_integer():
+        if not n_nulls.is_integer():
             n_nulls = np.int(n_nulls)
-            plt_length = (dm_header.ts.n_probes + n_nulls) * plt_cycles
-            # plt_length = np.int(np.floor(260 / dm_header.ts.t_one_cycle))
-            # oc = tcube_regcycle[:, :, 0:plt_length]  # if loading from npz
-            oc = tcube_regcycle['cube'][:, :, 0:plt_length]
-            tax = np.linspace(tstamps_from_h5_start[0], tstamps_from_h5_start[-1],  # [plt_length]
-                            plt_length)
-        else:
-            bins = 'irregular'
-            warnings.warn(f'\n\n{CCYN}'
-                          f'Warning: Nulls are {n_nulls}x the length of phase probe integration times (non-integer)\n'
-                          f'{CPRP}Setting bins to irreg (time bins selected by DM timestamps){CEND}')
+        plt_length = (dm_header.ts.n_probes + n_nulls) * plt_cycles
+        if plt_length > tcube_regcycle['cube'].shape[2]:
+            plt_length = tcube_regcycle['cube'].shape[2]
+        # plt_length = np.int(np.floor(260 / dm_header.ts.t_one_cycle))
+        oc = tcube_regcycle['cube'][:, :, 0:plt_length]
+        tax = np.linspace(tstamps_from_h5_start[0], tstamps_from_h5_start[-1],  # [plt_length]
+                        plt_length)
+    else:
+        bins = 'irregular'
+        warnings.warn(f'\n\n{CCYN}'
+                      f'Warning: Nulls are {n_nulls}x the length of phase probe integration times (non-integer)\n'
+                      f'{CPRP}Setting bins to irreg (time bins selected by DM timestamps){CEND}')
 
     if bins == 'irregular':
         n_nulls = 1
@@ -476,7 +474,7 @@ if __name__ == '__main__':
         if (ix / (dm_header.ts.n_probes + n_nulls)).is_integer() and ix != 0:
             phs_cnt += (dm_header.ts.n_probes + n_nulls)
         if probe_mask[ix]:
-            phase = f'{dm_header.ts.phase_cycle[ix-phs_cnt] / np.pi:.2f}'
+            phase = f'{dm_header.ts.phase_cycle[np.int(ix-phs_cnt)] / np.pi:.2f}'
             color = 'k'
         else:
             phase = f' NULL '
@@ -546,33 +544,40 @@ if __name__ == '__main__':
     cb = fig.colorbar(im, orientation='vertical', cax=cax)  #
     cb.set_label('Intensity')
 
-    plt.savefig(f'{dm_path}/{target_name}_{h5_name_parts[0]}_probe_Delta_null_1_2.png')
+    # plt.savefig(f'{dm_path}/{target_name}_{h5_name_parts[0]}_probe_Delta_null_1_2.png')
 ##
 ##########################################
 # DM Telemetry
 ##########################################
 from astropy.io import fits
+
+# Converting .txt string to Unix to compare with MEC command timestamp
 dmTel_dir = '/darkdata/kkdavis/mec/May2021c/dm_telemetry/dm00disp03/'
 fn = sorted(os.listdir(dmTel_dir))
 txts = [x for x in fn if ".fits" not in x]
-txts = [x.replace('dm00disp03_','') for x in txts]
-txts = [x.replace('.txt','') for x in txts]
+tt = [x.replace('dm00disp03_','') for x in txts]
+tt = [x.replace('.txt','') for x in tt]
 ymd = dm_header.ts.cmd_tstamps[0].astype('datetime64[D]')
-txts = [(ymd+x) for x in txts]
-this_step = datetime_to_unix(dm_header.ts.cmd_tstamps[0])
+ymd = ymd.astype('<U18')
+tt = [(ymd+'T'+x) for x in tt]
+tt = [datetime_to_unix(np.datetime64(x)) for x in tt]
 
-dmTel_file = find_lt(txts.astype('np.float'), this_step)
+# MEC Command Timestep
+t_mec = datetime_to_unix(dm_header.ts.cmd_tstamps[0])
+
+# Finding earlier best match
+idm = find_lt(tt, t_mec)
+dmTel_file = txts[idm]
 
 r2 = os.path.basename(dmTel_file)
 dmTel_name_parts = os.path.splitext(r2)
-dmTel_path = os.path.dirname(dmTel_file)
-dmtxt_file = os.path.join(dmTel_path,f'{dmTel_name_parts[0]}.txt')
+dmtxt_file = os.path.join(dmTel_dir,dmTel_file)
 
 tstr = dmTel_name_parts[0].replace('dm00disp03_','')
-dmT_unix = datetime_to_unix(np.datetime64(f'2021-05-18T{tstr}'))
+dmT_unix = datetime_to_unix(np.datetime64(f'{ymd}T{tstr}'))
 
 ##
-hdul = fits.open(dmTel_file)
+hdul = fits.open(dmtxt_file)
 hdul.info()
 hdr = hdul[0].header
 hdr
