@@ -19,7 +19,7 @@ from mec_cdi import Slapper
 from read_photons import open_MEC_tseries
 
 ##
-def cdi_postprocess(fp_seq, cdi_zip, plot=False):
+def cdi_postprocess(fp_seq, cdi_zip, plot=False, debug=False):
     """
     this is the function that accepts the timeseries of intensity images from the simulation and returns the processed
     single image. This function calculates the speckle amplitude phase, and then corrects for it to create the dark
@@ -48,8 +48,12 @@ def cdi_postprocess(fp_seq, cdi_zip, plot=False):
     b = np.zeros((n_pairs, 1))
 
     # Masking
-    mask2D, imsk, jmsk, irng, jrng, imx, imn, jmx, jmn = get_fp_mask(cdi_zip)
+    mask2D, imsk, jmsk, irng, jrng, imx, imn, jmx, jmn = get_fp_mask(cdi_zip, thresh=1, shft=[25,10])
 
+    if debug:
+        fig, ax = plt.subplots(1,1)
+        fig.suptitle(f'Masked FP in CDI probe Region')
+        im = ax.imshow((fp_seq[:,:,0]*mask2D).T)
 
     ## Differance Images (delta)
     # (I_ip+ - I_ip-)/2
@@ -57,7 +61,10 @@ def cdi_postprocess(fp_seq, cdi_zip, plot=False):
         delta[ip] = (np.abs(fp_seq[:,:,ip])**2 - np.abs(fp_seq[:,:,ip + n_pairs])**2) / 2
 
 ##
-    for i, j in zip(irng, jrng):
+    irng = range(140)
+    jrng = range(140)
+    for i in irng:
+        for j in jrng:
             for xn in range(n_nulls-1):
                 for ip in range(n_pairs):
                     # absDeltaP = (fp_seq[i,j,ip] + fp_seq[i,j,ip + n_pairs] / 2
@@ -103,9 +110,9 @@ def cdi_postprocess(fp_seq, cdi_zip, plot=False):
         fig.suptitle('Phase Interpolated')
 
         for ax, ix in zip(subplot.flatten(), range(n_pairs)):
-            im = ax.imshow(phs_delta[ix].T * 1e6, interpolation='none', origin='lower',
+            im = ax.imshow(phs_delta[ix].T * 1e6, interpolation='none', origin='lower')  #,
                            # norm=SymLogNorm(linthresh=1e-2),
-                           vmin=-1, vmax=1)  # , norm=SymLogNorm(linthresh=1e-5))
+                           # vmin=-1, vmax=1)  # , norm=SymLogNorm(linthresh=1e-5))
             ax.set_title(f"Phase\n" + r'$\theta$' + f'={cdi_zip.ts.phase_cycle[ix] / np.pi:.3f}' +
                          r'$\pi$ -$\theta$' + f'={cdi_zip.ts.phase_cycle[ix + n_pairs] / np.pi:.3f}' + r'$\pi$')
 
@@ -122,9 +129,9 @@ def cdi_postprocess(fp_seq, cdi_zip, plot=False):
         fig.suptitle('Deltas for CDI Probes')
 
         for ax, ix in zip(subplot.flatten(), range(n_pairs)):
-            im = ax.imshow(delta[ix].T*1e6, interpolation='none', origin='lower',
+            im = ax.imshow(delta[ix].T*1e6, interpolation='none', origin='lower')#,
                            # norm=SymLogNorm(linthresh=1e-2),
-                           vmin=-1, vmax=1) #, norm=SymLogNorm(linthresh=1e-5))
+                           # vmin=-1, vmax=1) #, norm=SymLogNorm(linthresh=1e-5))
             ax.set_title(f"Diff Probe\n" + r'$\theta$' + f'={cdi_zip.ts.phase_cycle[ix]/np.pi:.3f}' +
                          r'$\pi$ -$\theta$' + f'={cdi_zip.ts.phase_cycle[ix+n_pairs]/np.pi:.3f}' + r'$\pi$')
 
@@ -142,36 +149,66 @@ def cdi_postprocess(fp_seq, cdi_zip, plot=False):
         fig.suptitle('Estimated Focal-Plane E-field')
         for ax, ix in zip(subplt, range(3)):
             print(f'ax={ax}, ix={ix}')
-            im = ax.imshow(np.abs(E_pupil[ix].T)**2 * 1e6, interpolation='none', origin='lower')  #,
-                           # norm=LogNorm())
+            im = ax.imshow(np.abs(E_pupil[ix].T)**2, interpolation='none' ,
+                           norm=LogNorm())
             ax.set_title(f'Estimation timestep {ix}')
 
-        # cax = fig.add_axes([0.9, 0.2, 0.03, 0.6])  # Add axes for colorbar @ position [left,bottom,width,height]
-        # cb = fig.colorbar(im, orientation='vertical', cax=cax)  #
-        # # cb.set_label('Intensity')
-
-        plt.show()
-
+        # # Focal Plane E-field Estimate
+        # fig, subplt = plt.subplots(1, 1, figsize=(6, 5))
+        # fig.subplots_adjust(wspace=0.5, right=0.85)
+        # fig.suptitle('Estimated Focal-Plane E-field')
+        # im = subplt.imshow(np.abs(E_pupil[ix].T)**2 * 1e-6, interpolation='none',
+        #                norm=LogNorm())
         # #####################
         # Subtracted E-field
-        fig, subplot = plt.subplots(2, 5, figsize=(14, 5))
-        fig.subplots_adjust(wspace=0.05, right=0.85)
+        fig, subplot = plt.subplots(1, 3, figsize=(10, 5))
+        fig.subplots_adjust(wspace=0.1, right=0.85)
+        fig.suptitle(f' Subtracted E-field')
 
-        fig.suptitle('Subtracted E-field')
-
-        for ax, ix in zip(subplot, range(n_nulls)):
-            im = ax.imshow(fp_seq[:,:,ix].T-np.abs(E_pupil[ix].T) ** 2, interpolation='none', origin='lower')#,
+        I_processed = np.floor(np.abs(E_pupil[ix].T)**2 * 1e-6)
+        for ax, ix in zip(subplot, range(3)):
+            imsx = ax.imshow(fp_seq[:,:,ix+n_nulls].T-I_processed, interpolation='none',
+                             vmin=-1, vmax=2000)
                            # norm=LogNorm())
             ax.set_title(f'Estimation timestep {ix}')
 
-        # cax = fig.add_axes([0.9, 0.2, 0.03, 0.6])  # Add axes for colorbar @ position [left,bottom,width,height]
-        # cb = fig.colorbar(im, orientation='vertical', cax=cax)  #
-        # # cb.set_label('Intensity')
+        cax = fig.add_axes([0.9, 0.2, 0.03, 0.6])  # Add axes for colorbar @ position [left,bottom,width,height]
+        cb = fig.colorbar(imsx, orientation='vertical', cax=cax)  #
+        # cb.set_label('Intensity')
+        ######################################################
+        # Subtracted E-field
+        fig, subplot = plt.subplots(2, 3, figsize=(14, 10))
+        fig.subplots_adjust(wspace=0.1, right=0.85)
+        fig.suptitle(f'{target_name} Subtracted E-field')
+        ax1, ax2, ax3, ax4, ax5, ax6 = subplot.flatten()
 
+        I_processed = np.floor(np.abs(E_pupil[ix].T) ** 2 * 1e-6)
+
+        ax1.imshow(fp_seq[:, :, 0 + n_nulls].T, interpolation='none', vmin=-1, vmax=2000)
+        ax1.set_title(f'Null Step 1')
+        ax2.imshow(fp_seq[:, :, 1 + n_nulls].T, interpolation='none', vmin=-1, vmax=2000)
+        ax2.set_title(f'Null Step 2')
+        ax3.imshow(fp_seq[:, :, 2 + n_nulls].T, interpolation='none', vmin=-1, vmax=2000)
+        ax3.set_title(f'Null Step 3')
+        ax4.imshow(fp_seq[:,:,0+n_nulls].T-I_processed, interpolation='none', vmin=-1, vmax=2000)
+        ax4.set_title(f'CDI Subtracted Null 1')
+        ax5.imshow(fp_seq[:, :, 1 + n_nulls].T - I_processed, interpolation='none', vmin=-1, vmax=2000)
+        ax5.set_title(f'CDI Subtracted Null 2')
+        ax6.imshow(fp_seq[:, :, 2+ n_nulls].T - I_processed, interpolation='none', vmin=-1, vmax=2000)
+        ax6.set_title(f'CDI Subtracted Null 3')
         plt.show()
 
 ##
-def get_fp_mask(cdi, thresh=1e-7):
+def basic_fft(cdi_zip,)
+
+
+
+
+
+
+
+##
+def get_fp_mask(cdi_zip, thresh=1e-7, shft=[None,None]):
     """
     returns a mask of the CDI probe pattern in focal plane coordinates
 
@@ -180,10 +217,10 @@ def get_fp_mask(cdi, thresh=1e-7):
     """
     nx = 140
     ny = 146
-    dm_act = cdi.probe.DM_cmd_cycle.shape[1]
+    dm_act = cdi_zip.probe.DM_cmd_cycle.shape[1]
 
     probe_ft = (1 / np.sqrt(2 * np.pi)) *\
-               np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(cdi.probe.DM_cmd_cycle[0])))
+               np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(cdi_zip.probe.DM_cmd_cycle[0])))
 
     Ar = interpolate.interp2d(range(dm_act), range(dm_act), probe_ft.real, kind='cubic')
     Ai = interpolate.interp2d(range(dm_act), range(dm_act), probe_ft.imag, kind='cubic')
@@ -193,6 +230,13 @@ def get_fp_mask(cdi, thresh=1e-7):
     fp_probe = np.sqrt(ArI**2 + AiI**2)
     fp_mask = (fp_probe > thresh)
     (imsk, jmsk) = (fp_probe > thresh).nonzero()
+
+    if shft[0] is not None:
+        fp_mask = np.roll(fp_mask, shft[0], axis=0)
+        imsk = np.roll(imsk, shft[0], axis=0)
+    if shft[1] is not None:
+        fp_mask = np.roll(fp_mask,shft[1], axis=1)
+        jmsk = np.roll(jmsk,shft[1], axis=1)
 
     irng = range(min(imsk), max(imsk), 1)
     jrng = range(min(jmsk), max(jmsk), 1)
@@ -206,9 +250,10 @@ def get_fp_mask(cdi, thresh=1e-7):
 
 ##
 if __name__ == '__main__':
-    target_name = 'Jan2021_test8'  # None
-    cdi_zip = open_MEC_tseries('/darkdata/kkdavis/mec/Jan2021/CDI_tseries_1-30-2021_T4:27.pkl')
-    fp_seq = np.load('/darkdata/kkdavis/mec/Jan2021/Jan2021_test1_1611978617_temporalCube_regBins.npy', allow_pickle=True)
+    target_name = 'Vega_2021_run7'  # None
+    cdi_zip = open_MEC_tseries('/darkdata/kkdavis/mec/May2021c/CDI_tseries_5-25-2021_T11:58.pkl')
+    fp_seq = np.load('/darkdata/kkdavis/mec/May2021c/Vega_2021_run7_1621943770_temporalCube_regBins.npy',
+                     allow_pickle=True)
     grail = cdi_postprocess(fp_seq, cdi_zip, plot=True)
 
     dumm=1
