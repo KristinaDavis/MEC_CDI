@@ -73,12 +73,6 @@ def list_keys(file):
     print(data_in.files)
 
 
-def find_lt(a, x):
-    'Find rightmost value less than x'
-    i = bisect.bisect_left(a, x)
-    return i
-
-
 if __name__ == '__main__':
 
     ##

@@ -1,20 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" remoteFilesAllowedToDisappearOnAutoupload="false">
+  <component name="PublishConfigData" serverName="kkdavis@glados.physics.ucsb.edu:22" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
       <paths name="dark">
         <serverdata>
           <mappings>
             <mapping deploy="/scratch/CaptainKay/CDI" local="$PROJECT_DIR$" web="/" />
-          </mappings>
-        </serverdata>
-      </paths>
-      <paths name="dark-duplicate">
-        <serverdata>
-          <mappings>
-            <mapping local="$PROJECT_DIR$" web="/" />
-            <mapping local="$USER_HOME$/mazinlab/MKIDCore" web="/" />
-            <mapping local="$USER_HOME$/mazinlab/MKIDPipeline" web="/" />
           </mappings>
         </serverdata>
       </paths>
@@ -27,16 +18,15 @@
           </mappings>
         </serverdata>
       </paths>
-      <paths name="glados-pipeline">
+      <paths name="kkdavis@glados.physics.ucsb.edu:22">
         <serverdata>
           <mappings>
-            <mapping local="$PROJECT_DIR$" web="/" />
-            <mapping local="$USER_HOME$/mazinlab/MKIDCore" web="/" />
-            <mapping local="$USER_HOME$/mazinlab/MKIDPipeline" web="/" />
+            <mapping deploy="/work/kkdavis/src/MEC_CDI" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/work/kkdavis/src/MKIDCore" local="$USER_HOME$/mazinlab/MKIDCore" web="/" />
+            <mapping deploy="/work/kkdavis/src/MKIDPipeline" local="$USER_HOME$/mazinlab/MKIDPipeline" web="/" />
           </mappings>
         </serverdata>
       </paths>
     </serverData>
-    <option name="myAutoUpload" value="ALWAYS" />
   </component>
 </project>
