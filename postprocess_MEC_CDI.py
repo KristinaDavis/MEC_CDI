@@ -10,6 +10,7 @@ Aug 26 2020
 import numpy as np
 import os
 import time
+import bisect
 import scipy.linalg as sl
 from scipy import interpolate
 from matplotlib import pyplot as plt
@@ -202,8 +203,53 @@ def cdi_postprocess(fp_seq, cdi_zip, plot=False, debug=False):
 def basic_fft(cdi_zip,)
 
 
+def load_matched_DM_data(tstamp, map_dir, txt_list, txt_times):
+    """
+    Given a unix timestamp, will search for the DM telemetry file name that is the best match (immediately prior or
+    equal to the given timestamp), load in the timestream and 2D DM maps best fit match data, and return it
+
+    :param tstamp: unix timestamp of a cdi command (from cdi_zip)
+    :param map_dir: directory where the DM telemetry is stored
+    :param txt_list: list of .txt files in the specified dir
+    :return: map_ts, dm_map: map_ts is a list of the unix timestamps of each DM map, dm_map is the 2D map
+    """
+    # Finding earlier best match
+    idm = find_rt(txt_times, tstamp)
+    map_file_match = txt_list[idm]
+
+    r2 = os.path.basename(map_file_match)
+    dmTel_name_parts = os.path.splitext(r2)
+    dmtxt_file = os.path.join(map_dir, map_file_match)
+    dmfits_file = os.path.join(map_dir, dmTel_name_parts[0] + '.fits')
+
+    # Fits Import
+    from astropy.io import fits
+    hdul = fits.open(dmfits_file)
+    # hdul.info()
+    hdr = hdul[0].header
+    # hdr
+    dm_map = hdul[0].data
+
+    # Load Timing info from .txt file
+    """
+    col0 : datacube frame index
+    col1 : Main index
+    col2 : Time since cube origin
+    col3 : Absolute time
+    col4 : stream cnt0 index
+    col5 : stream cnt1 index
+    col6 : time difference between consecutive frames
+    """
+    dmtxt_data = np.loadtxt(dmtxt_file)
+    map_ts = dmtxt_data[:, 3]
+
+    return map_ts, dm_map
 
 
+def find_rt(a, x):
+    'Find rightmost value less than x'
+    i = bisect.bisect_right(a, x)
+    return i-1
 
 
 
@@ -247,6 +293,61 @@ def get_fp_mask(cdi_zip, thresh=1e-7, shft=[None,None]):
     jmn = min(jrng) - 1
 
     return fp_mask, imsk, jmsk, irng, jrng, imx, imn, jmx, jmn
+
+##
+##########################################
+# DM Telemetry (referred to as map)
+##########################################
+# Converting .txt string to Unix to compare with MEC command timestamp
+map_dir = '/darkdata/kkdavis/mec/May2021c/dm_telemetry/dm00disp03/'
+fn = sorted(os.listdir(map_dir))
+txts = [x for x in fn if ".fits" not in x]
+tt = [x.replace('dm00disp03_','') for x in txts]
+tt = [x.replace('.txt','') for x in tt]
+ymd = cdi_zip.ts.cmd_tstamps[0].astype('datetime64[D]')
+ymd = ymd.astype('<U18')
+tt = [(ymd+'T'+x) for x in tt]
+tt = [datetime_to_unix(np.datetime64(x)) for x in tt]
+# #---------------------
+# # MEC Initial Flat Timestep
+# flat = datetime_to_unix(cdi_zip.ts.cmd_tstamps[0])  # just find the first command, which should be a flat
+
+
+## Plot DM Map Probe Sequence
+msk = np.tile(np.append(False, np.repeat(True, cdi_zip.ts.n_probes)), cdi_zip.ts.n_cycles)
+cmds_probe_only = cdi_zip.ts.cmd_tstamps[msk]
+
+DM_maps = np.zeros((cdi_zip.ts.n_probes, cdi_zip.probe.DM_cmd_cycle.shape[1], cdi_zip.probe.DM_cmd_cycle.shape[2]))
+import datetime
+fig, subplot = plt.subplots(2,3, figsize=(12,8))
+fig.suptitle(f'DM Telemetry Data \n'
+                 f'target = {target_name}, {h5_name_parts[0]}{h5_name_parts[1]}\n'
+                 f' N probes={cdi_zip.ts.n_probes}, '
+                 f'N null steps={np.int(cdi_zip.ts.null_time / cdi_zip.ts.phase_integration_time)}, '
+                 f'integration time={cdi_zip.ts.phase_integration_time} sec')
+
+for ax, ix in zip(subplot.flatten(), range(cdi_zip.ts.n_probes)):
+    cdi_cmd = datetime_to_unix(cmds_probe_only[ix])
+    map_ts, dm_map = load_matched_DM_data(cdi_cmd, map_dir, txts, tt)
+    # Check that the MEC command falls within the time range of the telemetry file
+    try:
+        if not (cdi_cmd < map_ts[-1]) & (cdi_cmd > map_ts[0]):
+            raise ValueError('MEC command NOT within range of opened .txt file')
+    except(ValueError):
+        map_ts, dm_map = load_matched_DM_data(cdi_cmd, map_dir, txts, tt)
+    ixsync = find_lt(map_ts, cdi_cmd)
+
+    im = ax.imshow(dm_map[ixsync, :, :],
+              vmax=cdi_zip.probe.amp, vmin=-cdi_zip.probe.amp
+             )
+    ax.set_title(f'{map_ts[ixsync] - datetime_to_unix(cdi_zip.ts.cmd_tstamps[0]):.2f}')
+
+cax = fig.add_axes([0.91, 0.2, 0.02, 0.6])  # Add axes for colorbar @ position [left,bottom,width,height]
+cb = fig.colorbar(im, orientation='vertical', cax=cax)  #
+cb.set_label('DM voltage (relative scale)')
+
+# plt.savefig(f'{dm_path}/{target_name}_dmMap_seq.png')
+
 
 ##
 if __name__ == '__main__':

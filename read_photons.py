@@ -9,6 +9,7 @@ generated as mkidpipeline.PhotonTable. Temporal cubes are generated and saved fo
 postprocess_MEC_CDI.py function.
 
 """
+import datetime
 
 import numpy as np
 import os
@@ -16,7 +17,6 @@ import pickle
 import time
 import warnings
 from matplotlib import pyplot as plt
-import matplotlib.ticker as ticker
 from matplotlib.colors import LogNorm, SymLogNorm
 import bisect
 
@@ -75,11 +75,8 @@ def list_keys(file):
 
 def find_lt(a, x):
     'Find rightmost value less than x'
-    i = bisect.bisect_right(a, x)
-    return i-1
-
-
-##
+    i = bisect.bisect_left(a, x)
+    return i
 
 
 if __name__ == '__main__':
@@ -106,32 +103,32 @@ if __name__ == '__main__':
     scratch_path = '/work/kkdavis/scratch'
 
     ## Open DM .pkl file
-    dm_header = open_MEC_tseries(dm_file)
+    cdi_zip = open_MEC_tseries(dm_file)
 
-    firstUnixTstep = first_tstep(dm_header)
-    lastUnixTstep = last_tstep(dm_header)
+    firstUnixTstep = first_tstep(cdi_zip)
+    lastUnixTstep = last_tstep(cdi_zip)
     total_h5_seconds = lastUnixTstep - firstUnixTstep
     print(
         # f'\n\n{target_name} {h5_name_parts[0]}\n
         f'{dm_name_parts[0]}:\n\t'
-        f'First Timestep = {first_tstep(dm_header):.6f}\n\tLast Timestep = {last_tstep(dm_header):.6f}\n'
-        f'Duration = {dm_header.ts.elapsed_time/60:.2f} min ({dm_header.ts.elapsed_time:.4f} sec)')
+        f'First Timestep = {first_tstep(cdi_zip):.6f}\n\tLast Timestep = {last_tstep(cdi_zip):.6f}\n'
+        f'Duration = {cdi_zip.ts.elapsed_time/60:.2f} min ({cdi_zip.ts.elapsed_time:.4f} sec)')
 
     ## Printing DM Info
     print(f'\nDM Probe Series Info\n\t'
-          f'Probe Dir {dm_header.probe.direction}, Amp = {dm_header.probe.amp}\n\t'
-          f'Probe phase intervals {dm_header.probe.phs_interval/np.pi:.2f}pi\n\t'
-          f'Timing: Phase Integration {dm_header.ts.phase_integration_time} sec, Null Time {dm_header.ts.null_time} sec\n\t'
-          f'# probes {dm_header.ts.n_probes}, # Cycles: {dm_header.ts.n_cycles}, # Commands: {dm_header.ts.n_cmds} \n\t'
-          f'Time for one cycle: {dm_header.ts.t_one_cycle:.4f} sec\n\t'
-          f'Total Elapsed Time: {dm_header.ts.elapsed_time/60:.2f} min ({dm_header.ts.elapsed_time:.4f} sec)')
+          f'Probe Dir {cdi_zip.probe.direction}, Amp = {cdi_zip.probe.amp}\n\t'
+          f'Probe phase intervals {cdi_zip.probe.phs_interval/np.pi:.2f}pi\n\t'
+          f'Timing: Phase Integration {cdi_zip.ts.phase_integration_time} sec, Null Time {cdi_zip.ts.null_time} sec\n\t'
+          f'# probes {cdi_zip.ts.n_probes}, # Cycles: {cdi_zip.ts.n_cycles}, # Commands: {cdi_zip.ts.n_cmds} \n\t'
+          f'Time for one cycle: {cdi_zip.ts.t_one_cycle:.4f} sec\n\t'
+          f'Total Elapsed Time: {cdi_zip.ts.elapsed_time/60:.2f} min ({cdi_zip.ts.elapsed_time:.4f} sec)')
 
     ## Check Datasets Match
-    if float(h5_name_parts[0])*1e9 > dm_header.ts.cmd_tstamps[-1].astype('float') or \
-        float(h5_name_parts[0])*1e9 < (dm_header.ts.cmd_tstamps[0].astype('float')-5e10):
+    if float(h5_name_parts[0])*1e9 > cdi_zip.ts.cmd_tstamps[-1].astype('float') or \
+        float(h5_name_parts[0])*1e9 < (cdi_zip.ts.cmd_tstamps[0].astype('float')-5e10):
         warnings.warn(f"{CCYN}h5 file does not match DM commanded range{CEND}\n"
                       f"{h5_name_parts[0]}.h5 not within "
-                      f"{first_tstep(dm_header)-5:.0f} to {last_tstep(dm_header):.0f}")
+                      f"{first_tstep(cdi_zip)-5:.0f} to {last_tstep(cdi_zip):.0f}")
     else:
         print(f'\n\tDatasets match\n')
 
@@ -148,18 +145,18 @@ if __name__ == '__main__':
     else:
         pass
         ## Timestamp Conversion & Syncing
-        tstamps_as_unix = dm_header.ts.cmd_tstamps.astype('float64') / 1e9
+        tstamps_as_unix = cdi_zip.ts.cmd_tstamps.astype('float64') / 1e9
         tstamps_from_h5_start = tstamps_as_unix - h5_start
         if tstamps_from_h5_start[0] < 0:
             plus = tstamps_from_h5_start > 0
             # tstamps_from_h5_start = tstamps_from_h5_start[plus]#np.delete(tstamps_from_h5_start, plus)
 
-        tstamps_from_tstamps_start = dm_header.ts.cmd_tstamps - dm_header.ts.cmd_tstamps[0]
+        tstamps_from_tstamps_start = cdi_zip.ts.cmd_tstamps - cdi_zip.ts.cmd_tstamps[0]
         tstamps_from_tstamps_start = tstamps_from_tstamps_start.astype('float64') / 1e9
 
         ##  Create Photontable from h5
         table1 = pipe.Photontable(file_h5)
-        last_sec = dm_header.ts.elapsed_time + tstamps_from_h5_start[0]
+        last_sec = cdi_zip.ts.elapsed_time + tstamps_from_h5_start[0]
         if last_sec > check_h5_duration(table1):
             warnings.warn(f'\n{CCYN}CDI Test Exceedes h5 duration')
 
@@ -186,7 +183,7 @@ if __name__ == '__main__':
         print(f'\nMaking Temporal Cube-One Cycle')
         start_make_cube = time.time()
 
-        cycle_Nsteps = np.int(dm_header.ts.t_one_cycle/dm_header.ts.phase_integration_time)
+        cycle_Nsteps = np.int(cdi_zip.ts.t_one_cycle/cdi_zip.ts.phase_integration_time)
 
         tcube_1cycle = table1.getTemporalCube(timeslices=tstamps_from_h5_start[0:3*cycle_Nsteps])
 
@@ -208,7 +205,7 @@ if __name__ == '__main__':
         start_make_cube = time.time()
         tcube_regcycle = table1.getTemporalCube(firstSec=tstamps_from_h5_start[0],
                                               integrationTime=last_sec,
-                                              timeslice=dm_header.ts.phase_integration_time)
+                                              timeslice=cdi_zip.ts.phase_integration_time)
 
         end_make_cube = time.time()
         duration_make_tcube = end_make_cube - start_make_cube
@@ -230,7 +227,7 @@ if __name__ == '__main__':
         np.savez(f'{dm_path}/{target_name}_{h5_name_parts[0]}_processed',
                  tcube_regcycle=tcube_regcycle,
                  tcube_fullcycle=tcube_fullcycle,
-                 # cmd_tstamps=dm_header.ts.cmd_tstamps,
+                 # cmd_tstamps=cdi_zip.ts.cmd_tstamps,
                  file_h5=file_h5,
                  dm_file=dm_file)
 
@@ -255,21 +252,21 @@ if __name__ == '__main__':
     ax.imshow(cimg1, interpolation='none')  # [70:140,10:90,:]
     plt.show()
     ## Probe Response (from mec_cdi.py)
-    plot_probe_response(dm_header, 0)
-    plot_probe_cycle(dm_header)
-    plot_probe_response_cycle(dm_header)
-    plot_quick_coord_check(dm_header, 0)
+    plot_probe_response(cdi_zip, 0)
+    plot_probe_cycle(cdi_zip)
+    plot_probe_response_cycle(cdi_zip)
+    plot_quick_coord_check(cdi_zip, 0)
 
     ## Separating Probes & Null Steps by Temporal Cube type
     """
     because of the way mec_cdi.py is structured, the null step is of arbitrary length compared to the length of the 
-    integration time of each probe pattern. thus, dm_header.ts.phase_integration_time ~= dm_header.ts.null_time, 
+    integration time of each probe pattern. thus, cdi_zip.ts.phase_integration_time ~= cdi_zip.ts.null_time, 
     and there is no check to make sure the null time is an integer number of phase integration times. This leads to 
     the null time being a single long step rather than an integer number of timesteps of the phase_integration_time. 
     
     We can treat this in two ways. The first is to make the temporal cube with regular bin spacing, meaning that when
     the temporal cube is made, we give it the first second of the probe applied to the DM and then make regular spaced
-    bins from then on (which assumes the time the null was applied is n*dm_header.ts.phase_integration_time). The other
+    bins from then on (which assumes the time the null was applied is n*cdi_zip.ts.phase_integration_time). The other
     way we can handle this is to make irregular spaced bins, meaning that when the temporal cube is made, we send in
     each timestep that we record from the DM output, which gives us a cut down to the us and is more accurate. However, 
     since there was only one 'null command', there is only one 'null timestep'. This is only bothersome when you want 
@@ -282,19 +279,19 @@ if __name__ == '__main__':
     otherwise it a full cycle of the probe has n_probes + 1 null step
     """
     # Plot Data Length
-    # plt_cycles = dm_header.ts.n_cycles  # plot a subset of the full length of the temporal cube
+    # plt_cycles = cdi_zip.ts.n_cycles  # plot a subset of the full length of the temporal cube
     plt_cycles = 10
     bins = 'regular'  # 'regular' or 'irregular'
 
     # oc -> original cube; tax -> time axis
     if bins == 'regular':
-        n_nulls = dm_header.ts.null_time / dm_header.ts.phase_integration_time
+        n_nulls = cdi_zip.ts.null_time / cdi_zip.ts.phase_integration_time
         if not n_nulls.is_integer():
             n_nulls = np.int(n_nulls)
-        plt_length = (dm_header.ts.n_probes + n_nulls) * plt_cycles
+        plt_length = (cdi_zip.ts.n_probes + n_nulls) * plt_cycles
         if plt_length > tcube_regcycle['cube'].shape[2]:
             plt_length = tcube_regcycle['cube'].shape[2]
-        # plt_length = np.int(np.floor(260 / dm_header.ts.t_one_cycle))
+        # plt_length = np.int(np.floor(260 / cdi_zip.ts.t_one_cycle))
         oc = tcube_regcycle['cube'][:, :, 0:plt_length]
         tax = np.linspace(tstamps_from_h5_start[0], tstamps_from_h5_start[-1],  # [plt_length]
                         plt_length)
@@ -306,12 +303,12 @@ if __name__ == '__main__':
 
     if bins == 'irregular':
         n_nulls = 1
-        plt_length = np.int((dm_header.ts.n_probes+1)*plt_cycles)
+        plt_length = np.int((cdi_zip.ts.n_probes+1)*plt_cycles)
         oc = tcube_fullcycle['cube'][:, :, 0:plt_length]
         tax = tstamps_from_h5_start[0:plt_length]
 
     # # Separating Probes & Null Steps
-    probe_mask = np.append(np.repeat(True, dm_header.ts.n_probes), np.repeat(False, n_nulls))
+    probe_mask = np.append(np.repeat(True, cdi_zip.ts.n_probes), np.repeat(False, n_nulls))
     probe_mask = np.tile(probe_mask, plt_cycles)
     probe_mask = probe_mask[0:plt_length]
 
@@ -329,7 +326,7 @@ if __name__ == '__main__':
 
     xr = slice(colstart, colend)
     yr = slice(rowstart, rowend)
-    # subarr = oc[xr, yr, 0:dm_header.ts.n_probes-1]
+    # subarr = oc[xr, yr, 0:cdi_zip.ts.n_probes-1]
     subarr = oc[xr, yr, :]
 
     # msk_x = slice(25,60)
@@ -341,9 +338,9 @@ if __name__ == '__main__':
     fig.subplots_adjust(left=0.05, hspace=.4, wspace=0.2)
 
     fig.suptitle(f'MEC Nulls Summed Pre CDI\n {h5_name_parts[0]}{h5_name_parts[1]}, target= {target_name}\n'
-                 f' N probes={dm_header.ts.n_probes}, '
-                 f'N null steps={np.int(dm_header.ts.null_time / dm_header.ts.phase_integration_time)}, '
-                 f'integration time={dm_header.ts.phase_integration_time} sec')
+                 f' N probes={cdi_zip.ts.n_probes}, '
+                 f'N null steps={np.int(cdi_zip.ts.null_time / cdi_zip.ts.phase_integration_time)}, '
+                 f'integration time={cdi_zip.ts.phase_integration_time} sec')
     im = ax.imshow(np.sum(subarr, axis=2).T, interpolation='none')  # np.sum(subarr, axis=2) [70:140,10:90,:]
     ax.set_xticks(np.linspace(0, subarr.shape[1], 10, dtype=np.int))
     ax.set_yticks(np.linspace(0, subarr.shape[0], 10, dtype=np.int))
@@ -366,25 +363,25 @@ if __name__ == '__main__':
     yr = slice(rowstart, rowend)
     subarr = oc[xr, yr, :]
 
-    if dm_header.ts.n_probes >= 4:
+    if cdi_zip.ts.n_probes >= 4:
         nrows = 2
-        ncols = dm_header.ts.n_probes // 2
+        ncols = cdi_zip.ts.n_probes // 2
         figheight = 6
     else:
         nrows = 1
-        ncols = dm_header.ts.n_probes
+        ncols = cdi_zip.ts.n_probes
         figheight = 2
 
     fig, subplot = plt.subplots(nrows, ncols, figsize=(14, 25))
     fig.subplots_adjust(left=0.05, hspace=.4, wspace=0.2)
 
     fig.suptitle(f'MEC CDI Probe Response of {h5_name_parts[0]}{h5_name_parts[1]}, target= {target_name}\n'
-                 f' N probes={dm_header.ts.n_probes}, '
-                 f'N null steps={np.int(dm_header.ts.null_time / dm_header.ts.phase_integration_time)}, '
-                 f'integration time={dm_header.ts.phase_integration_time} sec')
-    for ax, ix in zip(subplot.flatten(), range(dm_header.ts.n_probes)):
+                 f' N probes={cdi_zip.ts.n_probes}, '
+                 f'N null steps={np.int(cdi_zip.ts.null_time / cdi_zip.ts.phase_integration_time)}, '
+                 f'integration time={cdi_zip.ts.phase_integration_time} sec')
+    for ax, ix in zip(subplot.flatten(), range(cdi_zip.ts.n_probes)):
         im = ax.imshow(subarr[:,:,ix].T, interpolation='none')  # [70:140,10:90,:]
-        ax.set_title(f"Probe " + r'$\theta$=' + f'{dm_header.ts.phase_cycle[ix] / np.pi:.2f}' + r'$\pi$')
+        ax.set_title(f"Probe " + r'$\theta$=' + f'{cdi_zip.ts.phase_cycle[ix] / np.pi:.2f}' + r'$\pi$')
         ax.set_xticks(np.linspace(0, subarr.shape[0], 10, dtype=np.int))
         ax.set_yticks(np.linspace(0, subarr.shape[1], 10, dtype=np.int))
         ax.set_xticklabels(np.linspace(colstart, colend, 10, dtype=np.int))
@@ -411,9 +408,9 @@ if __name__ == '__main__':
     fig, ax = plt.subplots(1, 1, figsize=(20, 20))
     fig.suptitle(f'Timestreams from Selected Pixels, {bins} Bins \n'
                  f'target = {target_name}, {h5_name_parts[0]}{h5_name_parts[1]}\n'
-                 f' N probes={dm_header.ts.n_probes}, '
-                 f'N null steps={np.int(dm_header.ts.null_time / dm_header.ts.phase_integration_time)}, '
-                 f'integration time={dm_header.ts.phase_integration_time} sec')
+                 f' N probes={cdi_zip.ts.n_probes}, '
+                 f'N null steps={np.int(cdi_zip.ts.null_time / cdi_zip.ts.phase_integration_time)}, '
+                 f'integration time={cdi_zip.ts.phase_integration_time} sec')
     ax.imshow(oc[:, :, 0].T, interpolation='none')
     plt.plot(pix1[0], pix1[1], 'r*')
     plt.plot(pix2[0], pix2[1], 'r*')
@@ -429,9 +426,9 @@ if __name__ == '__main__':
     label = ('Probe', 'Null')
     fig.suptitle(f'Timestreams from Selected Pixels, {bins} Bins \n'
                  f'target = {target_name}, {h5_name_parts[0]}{h5_name_parts[1]}\n'
-                 f' N probes={dm_header.ts.n_probes}, '
-                 f'N null steps={np.int(dm_header.ts.null_time / dm_header.ts.phase_integration_time)}, '
-                 f'integration time={dm_header.ts.phase_integration_time} sec')
+                 f' N probes={cdi_zip.ts.n_probes}, '
+                 f'N null steps={np.int(cdi_zip.ts.null_time / cdi_zip.ts.phase_integration_time)}, '
+                 f'integration time={cdi_zip.ts.phase_integration_time} sec')
 
     for s, l in zip((probe_mask, ~probe_mask), label):
         ax1.plot(tax[s], oc[pix1[0], pix1[1], s], '.', label=l)
@@ -471,10 +468,10 @@ if __name__ == '__main__':
     ims = []
     phs_cnt = 0
     for ix in range(plt_length):  #
-        if (ix / (dm_header.ts.n_probes + n_nulls)).is_integer() and ix != 0:
-            phs_cnt += (dm_header.ts.n_probes + n_nulls)
+        if (ix / (cdi_zip.ts.n_probes + n_nulls)).is_integer() and ix != 0:
+            phs_cnt += (cdi_zip.ts.n_probes + n_nulls)
         if probe_mask[ix]:
-            phase = f'{dm_header.ts.phase_cycle[np.int(ix-phs_cnt)] / np.pi:.2f}'
+            phase = f'{cdi_zip.ts.phase_cycle[np.int(ix-phs_cnt)] / np.pi:.2f}'
             color = 'k'
         else:
             phase = f' NULL '
@@ -482,9 +479,9 @@ if __name__ == '__main__':
 
         im = ax.imshow(subarr[:, :, ix].T)  # [70:140,10:90,:]
         ttl = plt.text(0.5, 1.01, f"{target_name}, file {h5_name_parts[0]}{h5_name_parts[1]}\n"
-                       f' N probes={dm_header.ts.n_probes}, '
-                       f'N null steps={np.int(dm_header.ts.null_time / dm_header.ts.phase_integration_time)}, '
-                       f'integration time={dm_header.ts.phase_integration_time} sec \n'
+                       f' N probes={cdi_zip.ts.n_probes}, '
+                       f'N null steps={np.int(cdi_zip.ts.null_time / cdi_zip.ts.phase_integration_time)}, '
+                       f'integration time={cdi_zip.ts.phase_integration_time} sec \n'
                        f"Probe " + r'$\theta$=' + phase + r'$\pi$',
                        horizontalalignment='center', verticalalignment='bottom', transform=ax.transAxes,
                        fontsize='large', color=color)
@@ -505,26 +502,26 @@ if __name__ == '__main__':
 ## Delta Probe Focal Plane (absDP)
     fp_sequence = tcube_regcycle['cube'][:, :, 0:plt_length]
 
-    n_pairs = dm_header.ts.n_probes // 2  # number of deltas (probe differentials)
-    n_nulls = np.int(dm_header.ts.null_time // dm_header.ts.phase_integration_time)
+    n_pairs = cdi_zip.ts.n_probes // 2  # number of deltas (probe differentials)
+    n_nulls = np.int(cdi_zip.ts.null_time // cdi_zip.ts.phase_integration_time)
     n_nulls=2
 
-    # fp_mask, edges, _, _, _, _ = get_fp_mask(dm_header, thresh=1e-5)
+    # fp_mask, edges, _, _, _, _ = get_fp_mask(cdi_zip, thresh=1e-5)
 
     # DeltaP
     fig, subplot = plt.subplots(n_nulls, n_pairs, figsize=(12, 8))
     fig.subplots_adjust(wspace=0.5, right=0.85)
     fig.suptitle(r'$\Delta$P for CDI Probes  '+
                  f'target = {target_name}, {h5_name_parts[0]}{h5_name_parts[1]}\n'
-                 f'Probe Amp = {dm_header.probe.amp}, N probes={dm_header.ts.n_probes}, '
-                 f'N null steps={np.int(dm_header.ts.null_time / dm_header.ts.phase_integration_time)}, '
-                 f'integration time={dm_header.ts.phase_integration_time} sec\n', fontweight='bold', fontsize=14)
+                 f'Probe Amp = {cdi_zip.probe.amp}, N probes={cdi_zip.ts.n_probes}, '
+                 f'N null steps={np.int(cdi_zip.ts.null_time / cdi_zip.ts.phase_integration_time)}, '
+                 f'integration time={cdi_zip.ts.phase_integration_time} sec\n', fontweight='bold', fontsize=14)
     cnt = np.tile(range(n_pairs),n_nulls)
     nx=1
     for ax, ix in zip(subplot.flatten(), range(n_nulls*n_pairs)):
         Ip = fp_sequence[:,:,cnt[ix]]
         Im = fp_sequence[:,:,cnt[ix] + n_pairs]
-        Io = fp_sequence[:,:,dm_header.ts.n_probes + (ix//n_pairs+0)]
+        Io = fp_sequence[:,:,cdi_zip.ts.n_probes + (ix//n_pairs+0)]
 
         absDP = (Ip + Im) / 2 - Io
         # if absDP.any() < 0:
@@ -545,91 +542,6 @@ if __name__ == '__main__':
     cb.set_label('Intensity')
 
     # plt.savefig(f'{dm_path}/{target_name}_{h5_name_parts[0]}_probe_Delta_null_1_2.png')
-##
-##########################################
-# DM Telemetry
-##########################################
-from astropy.io import fits
-
-# Converting .txt string to Unix to compare with MEC command timestamp
-dmTel_dir = '/darkdata/kkdavis/mec/May2021c/dm_telemetry/dm00disp03/'
-fn = sorted(os.listdir(dmTel_dir))
-txts = [x for x in fn if ".fits" not in x]
-tt = [x.replace('dm00disp03_','') for x in txts]
-tt = [x.replace('.txt','') for x in tt]
-ymd = dm_header.ts.cmd_tstamps[0].astype('datetime64[D]')
-ymd = ymd.astype('<U18')
-tt = [(ymd+'T'+x) for x in tt]
-tt = [datetime_to_unix(np.datetime64(x)) for x in tt]
-
-# MEC Command Timestep
-t_mec = datetime_to_unix(dm_header.ts.cmd_tstamps[0])
-
-# Finding earlier best match
-idm = find_lt(tt, t_mec)
-dmTel_file = txts[idm]
-
-r2 = os.path.basename(dmTel_file)
-dmTel_name_parts = os.path.splitext(r2)
-dmtxt_file = os.path.join(dmTel_dir,dmTel_file)
-
-tstr = dmTel_name_parts[0].replace('dm00disp03_','')
-dmT_unix = datetime_to_unix(np.datetime64(f'{ymd}T{tstr}'))
-
-##
-hdul = fits.open(dmtxt_file)
-hdul.info()
-hdr = hdul[0].header
-hdr
-##
-# col1 : datacube frame index
-# col2 : Main index
-# col3 : Time since cube origin
-# col4 : Absolute time
-# col5 : stream cnt0 index
-# col6 : stream cnt1 index
-# col7 : time difference between consecutive frames
-
-dm_cube = hdul[0].data
-dmTel_timing = np.loadtxt(dmtxt_file)
-
-## Sync Data Timestream
-dmTel_unix = dmTel_timing[:,3]
-DM_maps = np.zeros((dm_header.ts.n_probes, dm_cube.shape[1], dm_cube.shape[2]))
-
-fig, subplot = plt.subplots(2,3, figsize=(12,8))
-for ax, ix in zip(subplot.flatten(), range(dm_header.ts.n_probes)):
-    this_step = datetime_to_unix(dm_header.ts.cmd_tstamps[ix + 29])
-    try:
-        (this_step < dmTel_unix[-1]) & \
-        (this_step > dmTel_unix[0])
-    except:
-        # raise ValueError()
-        print('no good')
-    tsync = np.squeeze(np.array(np.where((dmTel_unix > this_step-5e-5) & (dmTel_unix < this_step+1e-4))))
-    # good_ixs = dmTel_unix[(dmTel_unix > this_step-5e-5) & (dmTel_unix < this_step+1e-4)]
-    # if good_ixs.shape[0] > 1:
-    if tsync.size > 1:
-        # warnings.warn(f"{CCYN}More than one DM map found per CDI command{CEND}\n"
-        #               f"using first DM map in range, found {tsync.size} maps")
-        print(f"{CCYN}More than one DM map found per CDI command{CEND}\n"
-              # f"using first DM map in range, found {good_ixs.shape[0]} maps\n"
-              f'Target is {this_step:.9f} \n'
-              # f'DM maps found are {good_ixs[0]:.9f},{good_ixs[-1]:.9f}')
-              f'\tDM maps found are {dmTel_unix[tsync[0]]:.9f}, {dmTel_unix[tsync[-1]]:.9f}')
-
-    ax.imshow(dm_cube[tsync[0], :, :])
-    ax.set_title(f'{dmTel_timing[tsync[-1], 3]}')
-##
-nrows = 2
-ncols = 3
-
-plt.show()
-
-
-##
-diffs = dmTel_timing[:,6]
-
 
 ##
 """
@@ -682,13 +594,13 @@ pix1 = [90,82]
  ##
     # Plot length of each timestep over time
 
-    diffs = np.zeros(dm_header.ts.n_cmds)
-    for it in range(dm_header.ts.n_cmds-1):
-        diffs[it] = (dm_header.ts.cmd_tstamps[it+1] - dm_header.ts.cmd_tstamps[it]) * 1e-9  # 1e-9 converts from ns to sec
+    diffs = np.zeros(cdi_zip.ts.n_cmds)
+    for it in range(cdi_zip.ts.n_cmds-1):
+        diffs[it] = (cdi_zip.ts.cmd_tstamps[it+1] - cdi_zip.ts.cmd_tstamps[it]) * 1e-9  # 1e-9 converts from ns to sec
 
 
     fig, ax = plt.subplots(1,1)
-    # ax.plot(dm_header.ts.cmd_tstamps, np.ones(len(dm_header.ts.cmd_tstamps)),'r.')
+    # ax.plot(cdi_zip.ts.cmd_tstamps, np.ones(len(cdi_zip.ts.cmd_tstamps)),'r.')
     # ax.plot(diffs,'b.')
     ax.plot(tax[probe_mask], np.ones(tax[probe_mask].size), 'r.')
     # ax.set_ylim(bottom=1.9e-1,top=2.1e-1)
