@@ -49,20 +49,33 @@ class CDI_params():
         self.save_to_disk = False
 
         # Probe Dimensions (extent in pupil plane coordinates)
-        self.probe_ax = 'X'  # 'Y' # direction of the probe
+        self.probe_ax = 'Y'  # 'Y' # direction of the probe
         self.probe_amp = 0.2  # [um] probe amplitude, scale should be in units of actuator height limits
-        self.probe_w = 15  # [actuator coordinates] width of the probe
-        self.probe_h = 30  # [actuator coordinates] height of the probe
-        self.probe_shift = [8, 8]  # [actuator coordinates] center position of the probe (should move off-center to
+        self.probe_w = 30  # [actuator coordinates] width of the probe
+        self.probe_h = 15  # [actuator coordinates] height of the probe
+        self.probe_shift = [10, 10]  # [actuator coordinates] center position of the probe (should move off-center to
         # avoid coronagraph)
-        self.probe_spacing = 10  # distance from the focal plane center to edge of the rectangular probed region
+        self.probe_spacing = 8  # distance from the focal plane center to edge of the rectangular probed region
 
         # Phase Sequence of Probes
         self.phs_intervals = np.pi / 3  # [rad] phase interval over [0, 2pi]
-        self.phase_integration_time = 0.01  # [s]  How long in sec to apply each probe in the sequence
-        self.null_time = 1  # [s]  time between repeating probe cycles (data to be nulled using probe info)
-        self.end_probes_after_time = 1.8 # 60 * 4.5  # [sec] probing repeats for x seconds until stopping
+        self.phase_integration_time = 0.1  # [s]  How long in sec to apply each probe in the sequence
+        self.null_time = 5 * self.phase_integration_time  # [s]  # 5 * self.phase_integration_time
+        # time between repeating probe cycles (data to be nulled using probe info)
+        self.end_probes_after_time = 1.2 # 60 * 4.5  # [sec] probing repeats for x seconds until stopping
         self.end_probes_after_ncycles = 800  # [int] probe repeats until it has completed x full cycles
+
+        # Check Coords
+        if self.probe_ax == 'X' or self.probe_ax == 'x':
+            if self.probe_h < self.probe_w:
+                raise ValueError("Set probe_h > probe_w if probe_ax = X")
+            if self.probe_spacing < self.probe_w/2:
+                raise ValueError("probe_spacing must be greater than probe_w//2")
+        elif self.probe_ax == 'Y' or self.probe_ax == 'y':
+            if self.probe_h > self.probe_w:
+                raise ValueError("Set probe_h > probe_w if probe_ax = Y")
+            if self.probe_spacing < self.probe_h/2:
+                raise ValueError("probe_spacing must be greater than probe_h//2")
 
     def __iter__(self):
         for attr, value in self.__dict__.items():
@@ -199,9 +212,8 @@ def config_probe(cdi, theta, nact):
         dir = Y
     else:
         raise ValueError('probe direction value not understood; must be string "X" or "Y"')
-
     probe = cdi.probe_amp * np.sinc(cdi.probe_w * X) * np.sinc(cdi.probe_h * Y) \
-            * np.sin(2*np.pi*cdi.probe_spacing*dir + theta)
+            * np.sin(2*np.pi*cdi.probe_spacing * dir + theta)
 
     return probe
 
@@ -331,7 +343,7 @@ def MEC_CDI():
     if cdi.plot:
         plot_probe_cycle(out)
         # plot_probe_response_cycle(out)
-        plot_probe_response(out, 0)
+        # plot_probe_response(out, 0)
         plot_quick_coord_check(out, 2)
         plt.show()
 
@@ -363,7 +375,8 @@ def send_flat(channel):
 if __name__ == '__main__':
     print(f"\nTesting CDI probe command cycle\n")
     mecshm, out = MEC_CDI()
+    print(f'probe dir is {out.probe.direction}')
     plot_quick_coord_check(out, 2)
-    # send_flat('dm00disp06')
+    send_flat('dm00disp06')
 
-    dumm=1000000
+
