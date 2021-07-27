@@ -72,16 +72,16 @@ def list_keys(file):
     list(data_in.files)
     print(data_in.files)
 
-
+##
 if __name__ == '__main__':
 
     ##
-    # target_name = 'HIP99770'  # None
-    # dm_file = '/darkdata/kkdavis/mec/May2021Sci/CDI_tseries_5-18-2021_T12:43.pkl'  #
-    # file_h5 = '/work/kkdavis/pipeline_out/20210518/1621341260.h5'
-    target_name = 'Vega_2021_run7'  # None
-    dm_file = '/darkdata/kkdavis/mec/May2021c/CDI_tseries_5-25-2021_T11:58.pkl'
-    file_h5 = '/darkdata/kkdavis/mec/May2021c/h5s/1621943770.h5'
+    # target_name = 'Jan2021_test2'  # None
+    # dm_file = '/darkdata/kkdavis/mec/Jan2021/CDI_tseries_1-30-2021_T3:53.pkl'
+    # file_h5 = '/work/kkdavis/pipeline_out/20210129/1611981292.h5'
+    target_name = 'Jun2021_test1'  # None
+    dm_file = '/darkdata/kkdavis/mec/Jun2021/CDI_tseries_7-16-2021_T2:10.pkl'
+    file_h5 = '/darkdata/kkdavis/mec/Jun2021/h5s/1626401268.h5'
 
     # target_name = 'Hip79124'  # None
     # file_h5 ='/darkdata/steiger/MEC/20200705/Hip79124/1594023761.h5'  #
@@ -126,6 +126,16 @@ if __name__ == '__main__':
     else:
         print(f'\n\tDatasets match\n')
 
+    ## Timestamp Conversion & Syncing
+    tstamps_as_unix = cdi_zip.ts.cmd_tstamps.astype('float64') / 1e9
+    tstamps_from_h5_start = tstamps_as_unix - h5_start
+    if tstamps_from_h5_start[0] < 0:
+        plus = tstamps_from_h5_start > 0
+        # tstamps_from_h5_start = tstamps_from_h5_start[plus]#np.delete(tstamps_from_h5_start, plus)
+
+    tstamps_from_tstamps_start = cdi_zip.ts.cmd_tstamps - cdi_zip.ts.cmd_tstamps[0]
+    tstamps_from_tstamps_start = tstamps_from_tstamps_start.astype('float64') / 1e9
+
     ## Load tCube from saved file
     existing = f'{dm_path}/{target_name}_{h5_name_parts[0]}_processed.npz'
     if os.path.isfile(existing):
@@ -138,15 +148,6 @@ if __name__ == '__main__':
         # cimg1 = np.load('/work/kkdavis/cdi/ScienceOct2020/SciOct2020_piximg_1602072901.npy')
     else:
         pass
-        ## Timestamp Conversion & Syncing
-        tstamps_as_unix = cdi_zip.ts.cmd_tstamps.astype('float64') / 1e9
-        tstamps_from_h5_start = tstamps_as_unix - h5_start
-        if tstamps_from_h5_start[0] < 0:
-            plus = tstamps_from_h5_start > 0
-            # tstamps_from_h5_start = tstamps_from_h5_start[plus]#np.delete(tstamps_from_h5_start, plus)
-
-        tstamps_from_tstamps_start = cdi_zip.ts.cmd_tstamps - cdi_zip.ts.cmd_tstamps[0]
-        tstamps_from_tstamps_start = tstamps_from_tstamps_start.astype('float64') / 1e9
 
         ##  Create Photontable from h5
         table1 = pipe.Photontable(file_h5)
@@ -185,12 +186,13 @@ if __name__ == '__main__':
         duration_make_tcube = end_make_cube - start_make_cube
         print(f'time to make one-cycle temporal cube is {duration_make_tcube/60:.2f} minutes '
               f'({duration_make_tcube:.2f} sec)')
-        #
+        np.save(f'{dm_path}/{target_name}_{h5_name_parts[0]}_temporalCube_quick', tcube_1cycle['cube'])
+
         ## Temporal Cube full dataset--regular bins
         """
-        makes a temporal cube where each bin is spaced by the probe integration time. This way, an unprobed length of time
-        is split up into multiple time bins, rather than being lumped into one longer duration time bin. This is useful 
-        for comparing intensity in a single probed timestep to an equivalent 'null' timestep
+        makes a temporal cube where each bin is spaced by the probe integration time. This way, an unprobed length 
+        of time is split up into multiple time bins, rather than being lumped into one longer duration time bin.  
+        This is useful for comparing intensity in a single probed timestep to an equivalent 'null' timestep
         
         integration time is a misnomer for getTemporalCube. What it really wants is the last timestep that you want 
         included in the cube, in units of seconds after the h5 file start
@@ -240,15 +242,15 @@ if __name__ == '__main__':
 #===============================================================
 # Plotting
 #===============================================================
-    ##  Pixel Count Image (cmg1)
-    fig, ax = plt.subplots(nrows=1, ncols=1)
-    fig.suptitle(f'Total Pixel Count Image: {h5_name_parts[0]}')
-    ax.imshow(cimg1, interpolation='none')  # [70:140,10:90,:]
-    plt.show()
+    # ##  Pixel Count Image (cmg1)
+    # fig, ax = plt.subplots(nrows=1, ncols=1)
+    # fig.suptitle(f'Total Pixel Count Image: {h5_name_parts[0]}')
+    # ax.imshow(cimg1, interpolation='none')  # [70:140,10:90,:]
+    # plt.show()
     ## Probe Response (from mec_cdi.py)
     plot_probe_response(cdi_zip, 0)
-    plot_probe_cycle(cdi_zip)
-    plot_probe_response_cycle(cdi_zip)
+    # plot_probe_cycle(cdi_zip)
+    # plot_probe_response_cycle(cdi_zip)
     plot_quick_coord_check(cdi_zip, 0)
 
     ## Separating Probes & Null Steps by Temporal Cube type
@@ -274,15 +276,18 @@ if __name__ == '__main__':
     """
     # Plot Data Length
     # plt_cycles = cdi_zip.ts.n_cycles  # plot a subset of the full length of the temporal cube
-    plt_cycles = 10
+    plt_cycles = 5
     bins = 'regular'  # 'regular' or 'irregular'
+
+    # if target_name == 'Jan2021_test11':
+    #     tcube_regcycle = {'cube':tcube_regcycle}
 
     # oc -> original cube; tax -> time axis
     if bins == 'regular':
         n_nulls = cdi_zip.ts.null_time / cdi_zip.ts.phase_integration_time
         if not n_nulls.is_integer():
             n_nulls = np.int(n_nulls)
-        plt_length = (cdi_zip.ts.n_probes + n_nulls) * plt_cycles
+        plt_length = np.int((cdi_zip.ts.n_probes + n_nulls) * plt_cycles)
         if plt_length > tcube_regcycle['cube'].shape[2]:
             plt_length = tcube_regcycle['cube'].shape[2]
         # plt_length = np.int(np.floor(260 / cdi_zip.ts.t_one_cycle))
@@ -386,20 +391,18 @@ if __name__ == '__main__':
     cb = fig.colorbar(im, cax=cbar_ax, orientation='vertical')  #
     cb.set_label(f'Counts', fontsize=12)
 
-    plt.show()
-
     ## Checking Pixel locations for timestream
-    # # Test 1
-    pix1 = [105, 65]
-    pix2 = [100, 55]  #
-    pix3 = [74, 47]  # not a speckle
-    pix4 = [123, 63]
-    # pix1 = [107, 56]
-    # pix2 = [76, 65]
-    # pix3 = [114, 51]  # Not Partcularly Speckly
-    # pix4 = [86, 61]
+    # # Test 5
+    # pix1 = [92, 40]
+    # pix2 = [106, 53]  #
+    # pix3 = [74, 47]  #
+    # pix4 = [128, 57]  #
+    pix1 = [83, 84]
+    pix2 = [88, 88]  #
+    pix3 = [84, 34]  # not a speckle
+    pix4 = [96, 61]
 
-    fig, ax = plt.subplots(1, 1, figsize=(20, 20))
+    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
     fig.suptitle(f'Timestreams from Selected Pixels, {bins} Bins \n'
                  f'target = {target_name}, {h5_name_parts[0]}{h5_name_parts[1]}\n'
                  f' N probes={cdi_zip.ts.n_probes}, '
@@ -411,9 +414,12 @@ if __name__ == '__main__':
     plt.plot(pix3[0], pix3[1], 'r*')
     plt.plot(pix4[0], pix4[1], 'r*')
 
+    plt.savefig(f'{dm_path}/plots/{target_name}_{h5_name_parts[0]}_stars.png')
+
+
     ## Time Stream from Selected Pixels: Nulls + Probes Different Colors
 
-    fig, axs = plt.subplots(4, 1, figsize=(10, 40))
+    fig, axs = plt.subplots(4, 1, figsize=(14, 14))
     fig.subplots_adjust(wspace=0.3, hspace=0.5)
     ax1, ax2, ax3, ax4 = axs.flatten()
     colors = ['blue', 'orange']
@@ -441,57 +447,57 @@ if __name__ == '__main__':
         ax4.plot(tax[s], oc[pix4[0], pix4[1], s], '.', label=l)
     ax4.set_title(f'Pixel {pix4}, Probe Region')
 
-    # plt.savefig(f'{dm_path}/plots/{target_name}_{h5_name_parts[0]}_tstream_pix.png')
+    plt.savefig(f'{dm_path}/plots/{target_name}_{h5_name_parts[0]}_tstream_pix.png')
 
 
-    ## Animation
-    import matplotlib.animation as animation
-
-    rowstart = 15
-    rowend = 125
-    colstart = 30
-    colend = 140
-
-    xr = slice(colstart, colend)
-    yr = slice(rowstart, rowend)
-    subarr = oc[xr, yr, :]
-
-    fig, ax = plt.subplots(1, 1, figsize=(10, 10))
-    # fig.subplots_adjust(left=0.05, hspace=.4, wspace=0.2)
-
-    ims = []
-    phs_cnt = 0
-    for ix in range(plt_length):  #
-        if (ix / (cdi_zip.ts.n_probes + n_nulls)).is_integer() and ix != 0:
-            phs_cnt += (cdi_zip.ts.n_probes + n_nulls)
-        if probe_mask[ix]:
-            phase = f'{cdi_zip.ts.phase_cycle[np.int(ix-phs_cnt)] / np.pi:.2f}'
-            color = 'k'
-        else:
-            phase = f' NULL '
-            color = 'cyan'
-
-        im = ax.imshow(subarr[:, :, ix].T)  # [70:140,10:90,:]
-        ttl = plt.text(0.5, 1.01, f"{target_name}, file {h5_name_parts[0]}{h5_name_parts[1]}\n"
-                       f' N probes={cdi_zip.ts.n_probes}, '
-                       f'N null steps={np.int(cdi_zip.ts.null_time / cdi_zip.ts.phase_integration_time)}, '
-                       f'integration time={cdi_zip.ts.phase_integration_time} sec \n'
-                       f"Probe " + r'$\theta$=' + phase + r'$\pi$',
-                       horizontalalignment='center', verticalalignment='bottom', transform=ax.transAxes,
-                       fontsize='large', color=color)
-        ax.set_xticks(np.linspace(0, subarr.shape[1], 10, dtype=np.int))
-        ax.set_yticks(np.linspace(0, subarr.shape[0], 10, dtype=np.int))
-        ax.set_xticklabels(np.linspace(colstart, colend, 10, dtype=np.int))
-        ax.set_yticklabels(np.linspace(rowstart, rowend, 10, dtype=np.int))
-
-        # cbar_ax = fig.add_axes([0.91, 0.1, 0.02, 0.8])  # Add axes for colorbar @ position [left,bottom,width,height]
-        # cb = fig.colorbar(ax, cax=cbar_ax, orientation='vertical')  #
-        # cb.set_label(f'Counts', fontsize=12)
-
-        ims.append([im, ttl])
-
-    ani = animation.ArtistAnimation(fig, ims, interval=1000, repeat_delay=1000, blit=False)  # time in miliseconds 0.001 s
-    ani.save(f'{dm_path}/{target_name}_withRegularSpacedNulls.gif')
+    # ## Animation
+    # import matplotlib.animation as animation
+    #
+    # rowstart = 15
+    # rowend = 125
+    # colstart = 30
+    # colend = 140
+    #
+    # xr = slice(colstart, colend)
+    # yr = slice(rowstart, rowend)
+    # subarr = oc[xr, yr, :]
+    #
+    # fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+    # # fig.subplots_adjust(left=0.05, hspace=.4, wspace=0.2)
+    #
+    # ims = []
+    # phs_cnt = 0
+    # for ix in range(plt_length):  #
+    #     if (ix / (cdi_zip.ts.n_probes + n_nulls)).is_integer() and ix != 0:
+    #         phs_cnt += (cdi_zip.ts.n_probes + n_nulls)
+    #     if probe_mask[ix]:
+    #         phase = f'{cdi_zip.ts.phase_cycle[np.int(ix-phs_cnt)] / np.pi:.2f}'
+    #         color = 'k'
+    #     else:
+    #         phase = f' NULL '
+    #         color = 'cyan'
+    #
+    #     im = ax.imshow(subarr[:, :, ix].T)  # [70:140,10:90,:]
+    #     ttl = plt.text(0.5, 1.01, f"{target_name}, file {h5_name_parts[0]}{h5_name_parts[1]}\n"
+    #                    f' N probes={cdi_zip.ts.n_probes}, '
+    #                    f'N null steps={np.int(cdi_zip.ts.null_time / cdi_zip.ts.phase_integration_time)}, '
+    #                    f'integration time={cdi_zip.ts.phase_integration_time} sec \n'
+    #                    f"Probe " + r'$\theta$=' + phase + r'$\pi$',
+    #                    horizontalalignment='center', verticalalignment='bottom', transform=ax.transAxes,
+    #                    fontsize='large', color=color)
+    #     ax.set_xticks(np.linspace(0, subarr.shape[1], 10, dtype=np.int))
+    #     ax.set_yticks(np.linspace(0, subarr.shape[0], 10, dtype=np.int))
+    #     ax.set_xticklabels(np.linspace(colstart, colend, 10, dtype=np.int))
+    #     ax.set_yticklabels(np.linspace(rowstart, rowend, 10, dtype=np.int))
+    #
+    #     # cbar_ax = fig.add_axes([0.91, 0.1, 0.02, 0.8])  # Add axes for colorbar @ position [left,bottom,width,height]
+    #     # cb = fig.colorbar(ax, cax=cbar_ax, orientation='vertical')  #
+    #     # cb.set_label(f'Counts', fontsize=12)
+    #
+    #     ims.append([im, ttl])
+    #
+    # ani = animation.ArtistAnimation(fig, ims, interval=1000, repeat_delay=1000, blit=False)  # time in miliseconds 0.001 s
+    # ani.save(f'{dm_path}/plots/{target_name}_withRegularSpacedNulls.gif')
 
 ## Delta Probe Focal Plane (absDP)
     fp_sequence = tcube_regcycle['cube'][:, :, 0:plt_length]
@@ -535,9 +541,11 @@ if __name__ == '__main__':
     cb = fig.colorbar(im, orientation='vertical', cax=cax)  #
     cb.set_label('Intensity')
 
-    # plt.savefig(f'{dm_path}/{target_name}_{h5_name_parts[0]}_probe_Delta_null_1_2.png')
+    plt.savefig(f'{dm_path}/plots/{target_name}_{h5_name_parts[0]}_probe_Delta_null_1_2.png')
 
 ##
+    plt.show()
+
 """
     # ts1 = oc[81,79,:]
     # ts2 = oc[90,97,:]
