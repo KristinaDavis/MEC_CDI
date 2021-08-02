@@ -76,12 +76,12 @@ def list_keys(file):
 if __name__ == '__main__':
 
     ##
-    # target_name = 'Jan2021_test2'  # None
-    # dm_file = '/darkdata/kkdavis/mec/Jan2021/CDI_tseries_1-30-2021_T3:53.pkl'
-    # file_h5 = '/work/kkdavis/pipeline_out/20210129/1611981292.h5'
-    target_name = 'Jun2021_test1'  # None
-    dm_file = '/darkdata/kkdavis/mec/Jun2021/CDI_tseries_7-16-2021_T2:10.pkl'
-    file_h5 = '/darkdata/kkdavis/mec/Jun2021/h5s/1626401268.h5'
+    # target_name = 'Jan2021_test5'  # None
+    # dm_file = '/darkdata/kkdavis/mec/Jan2021/CDI_tseries_1-30-2021_T4:16.pkl'
+    # file_h5 = '/work/kkdavis/pipeline_out/20210129/1611980038.h5'
+    target_name = 'Vega_2021_run5'  # None
+    dm_file = '/darkdata/kkdavis/mec/May2021c/CDI_tseries_5-25-2021_T11:53.pkl'
+    file_h5 = '/darkdata/kkdavis/mec/May2021c/h5s/1621943458.h5'
 
     # target_name = 'Hip79124'  # None
     # file_h5 ='/darkdata/steiger/MEC/20200705/Hip79124/1594023761.h5'  #
@@ -279,8 +279,8 @@ if __name__ == '__main__':
     plt_cycles = 5
     bins = 'regular'  # 'regular' or 'irregular'
 
-    # if target_name == 'Jan2021_test11':
-    #     tcube_regcycle = {'cube':tcube_regcycle}
+    if target_name == 'Jan2021_test2':
+        tcube_regcycle = {'cube':np.array(tcube_regcycle)}
 
     # oc -> original cube; tax -> time axis
     if bins == 'regular':
@@ -314,7 +314,7 @@ if __name__ == '__main__':
     ## Pixel Count Image (Temporal Image Cube summed over oc length)
     fig, ax = plt.subplots(nrows=1, ncols=1)
     fig.suptitle(f'Total Pixel Count Image: {h5_name_parts[0]}{h5_name_parts[1]}\n'
-                 f'{target_name}')
+                 f'{target_name}', fontweight='bold', fontsize=14)
     ax.imshow(np.sum(oc, axis=2).T, interpolation='none')  # [70:140,10:90,:]
 
     ## Pixel Count Image Subarray, summed over full plot length
@@ -339,7 +339,7 @@ if __name__ == '__main__':
     fig.suptitle(f'MEC Nulls Summed Pre CDI\n {h5_name_parts[0]}{h5_name_parts[1]}, target= {target_name}\n'
                  f' N probes={cdi_zip.ts.n_probes}, '
                  f'N null steps={np.int(cdi_zip.ts.null_time / cdi_zip.ts.phase_integration_time)}, '
-                 f'integration time={cdi_zip.ts.phase_integration_time} sec')
+                 f'integration time={cdi_zip.ts.phase_integration_time} sec', fontweight='bold', fontsize=14)
     im = ax.imshow(np.sum(subarr, axis=2).T, interpolation='none')  # np.sum(subarr, axis=2) [70:140,10:90,:]
     ax.set_xticks(np.linspace(0, subarr.shape[1], 10, dtype=np.int))
     ax.set_yticks(np.linspace(0, subarr.shape[0], 10, dtype=np.int))
@@ -377,7 +377,7 @@ if __name__ == '__main__':
     fig.suptitle(f'MEC CDI Probe Response of {h5_name_parts[0]}{h5_name_parts[1]}, target= {target_name}\n'
                  f' N probes={cdi_zip.ts.n_probes}, '
                  f'N null steps={np.int(cdi_zip.ts.null_time / cdi_zip.ts.phase_integration_time)}, '
-                 f'integration time={cdi_zip.ts.phase_integration_time} sec')
+                 f'integration time={cdi_zip.ts.phase_integration_time} sec', fontweight='bold', fontsize=14)
     for ax, ix in zip(subplot.flatten(), range(cdi_zip.ts.n_probes)):
         im = ax.imshow(subarr[:,:,ix].T, interpolation='none')  # [70:140,10:90,:]
         ax.set_title(f"Probe " + r'$\theta$=' + f'{cdi_zip.ts.phase_cycle[ix] / np.pi:.2f}' + r'$\pi$')
@@ -392,22 +392,18 @@ if __name__ == '__main__':
     cb.set_label(f'Counts', fontsize=12)
 
     ## Checking Pixel locations for timestream
-    # # Test 5
-    # pix1 = [92, 40]
-    # pix2 = [106, 53]  #
-    # pix3 = [74, 47]  #
-    # pix4 = [128, 57]  #
-    pix1 = [83, 84]
-    pix2 = [88, 88]  #
-    pix3 = [84, 34]  # not a speckle
-    pix4 = [96, 61]
+
+    pix1 = [107, 66]
+    pix2 = [100, 55]  #
+    pix3 = [74, 47]  # not a speckle
+    pix4 = [88, 63]
 
     fig, ax = plt.subplots(1, 1, figsize=(8, 8))
     fig.suptitle(f'Timestreams from Selected Pixels, {bins} Bins \n'
                  f'target = {target_name}, {h5_name_parts[0]}{h5_name_parts[1]}\n'
                  f' N probes={cdi_zip.ts.n_probes}, '
                  f'N null steps={np.int(cdi_zip.ts.null_time / cdi_zip.ts.phase_integration_time)}, '
-                 f'integration time={cdi_zip.ts.phase_integration_time} sec')
+                 f'integration time={cdi_zip.ts.phase_integration_time} sec', fontweight='bold', fontsize=14)
     ax.imshow(oc[:, :, 0].T, interpolation='none')
     plt.plot(pix1[0], pix1[1], 'r*')
     plt.plot(pix2[0], pix2[1], 'r*')
@@ -419,7 +415,7 @@ if __name__ == '__main__':
 
     ## Time Stream from Selected Pixels: Nulls + Probes Different Colors
 
-    fig, axs = plt.subplots(4, 1, figsize=(14, 14))
+    fig, axs = plt.subplots(4, 1, figsize=(10, 40))
     fig.subplots_adjust(wspace=0.3, hspace=0.5)
     ax1, ax2, ax3, ax4 = axs.flatten()
     colors = ['blue', 'orange']
@@ -428,7 +424,7 @@ if __name__ == '__main__':
                  f'target = {target_name}, {h5_name_parts[0]}{h5_name_parts[1]}\n'
                  f' N probes={cdi_zip.ts.n_probes}, '
                  f'N null steps={np.int(cdi_zip.ts.null_time / cdi_zip.ts.phase_integration_time)}, '
-                 f'integration time={cdi_zip.ts.phase_integration_time} sec')
+                 f'integration time={cdi_zip.ts.phase_integration_time} sec', fontweight='bold', fontsize=14)
 
     for s, l in zip((probe_mask, ~probe_mask), label):
         ax1.plot(tax[s], oc[pix1[0], pix1[1], s], '.', label=l)
@@ -447,7 +443,7 @@ if __name__ == '__main__':
         ax4.plot(tax[s], oc[pix4[0], pix4[1], s], '.', label=l)
     ax4.set_title(f'Pixel {pix4}, Probe Region')
 
-    plt.savefig(f'{dm_path}/plots/{target_name}_{h5_name_parts[0]}_tstream_pix.png')
+    # plt.savefig(f'{dm_path}/plots/{target_name}_{h5_name_parts[0]}_tstream_pix.png')
 
 
     # ## Animation
@@ -542,6 +538,42 @@ if __name__ == '__main__':
     cb.set_label('Intensity')
 
     plt.savefig(f'{dm_path}/plots/{target_name}_{h5_name_parts[0]}_probe_Delta_null_1_2.png')
+
+    ## Compare Probes to Nulls
+
+    if cdi_zip.ts.n_probes >= 4:
+        nrows = 2
+        ncols = cdi_zip.ts.n_probes // 2
+        figheight = 6
+    else:
+        nrows = 1
+        ncols = cdi_zip.ts.n_probes
+        figheight = 2
+
+    fig, subplot = plt.subplots(nrows, ncols, figsize=(12, 8))
+    fig.subplots_adjust(left=0.05, hspace=.4, wspace=0.2)
+
+    fig.suptitle(f'MEC CDI Probe Response of {h5_name_parts[0]}{h5_name_parts[1]}, target= {target_name}\n'
+                 f' N probes={cdi_zip.ts.n_probes}, '
+                 f'N null steps={np.int(cdi_zip.ts.null_time / cdi_zip.ts.phase_integration_time)}, '
+                 f'integration time={cdi_zip.ts.phase_integration_time} sec', fontweight='bold', fontsize=14)
+    for ax, ix in zip(subplot.flatten(), range(cdi_zip.ts.n_probes)):
+        if ix < cdi_zip.ts.n_probes //2:
+            im = ax.imshow(oc[:, :, ix].T, interpolation='none')  # [70:140,10:90,:]
+            ax.set_title(f"Probe " + r'$\theta$=' + f'{cdi_zip.ts.phase_cycle[ix] / np.pi:.2f}' + r'$\pi$')
+            print(f'Total Intensity at step {ix} = {np.sum(oc[:, :, ix]):.1f}')
+        else:
+            im = ax.imshow(oc[:, :, ix + cdi_zip.ts.n_probes].T, interpolation='none')  # [70:140,10:90,:]
+            ax.set_title(f"Null {ix-cdi_zip.ts.n_probes //2}")
+            print(f'Total Intensity at step {ix} = {np.sum(oc[:, :, ix + cdi_zip.ts.n_probes])}')
+
+    # warnings.simplefilter("ignore", category=UserWarning)
+    cbar_ax = fig.add_axes([0.91, 0.1, 0.02, 0.8])  # Add axes for colorbar @ position [left,bottom,width,height]
+    cb = fig.colorbar(im, cax=cbar_ax, orientation='vertical')  #
+    cb.set_label(f'Counts', fontsize=12)
+
+    plt.savefig(f'{dm_path}/plots/{target_name}_{h5_name_parts[0]}_probe_vs_null.png')
+
 
 ##
     plt.show()
