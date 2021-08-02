@@ -24,6 +24,17 @@
             <mapping deploy="/work/kkdavis/src/MEC_CDI" local="$PROJECT_DIR$" web="/" />
             <mapping deploy="/work/kkdavis/src/MKIDCore" local="$USER_HOME$/mazinlab/MKIDCore" web="/" />
             <mapping deploy="/work/kkdavis/src/MKIDPipeline" local="$USER_HOME$/mazinlab/MKIDPipeline" web="/" />
+            <mapping deploy="/work/kkdavis/src/pyMilk" local="$USER_HOME$/Programs/pyMilk" />
+            <mapping deploy="/work/kkdavis/src/proper_v3.2.5_python_3.x" local="$USER_HOME$/Programs/Proper3.1.1" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="kkdavis@glados.physics.ucsb.edu:22 (2)">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+            <mapping local="$USER_HOME$/mazinlab/MKIDCore" web="/" />
+            <mapping local="$USER_HOME$/mazinlab/MKIDPipeline" web="/" />
           </mappings>
         </serverdata>
       </paths>

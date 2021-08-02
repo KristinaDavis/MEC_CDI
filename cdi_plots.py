@@ -40,7 +40,7 @@ def plot_probe_cycle(out):
     fig, subplot = plt.subplots(nrows, ncols, figsize=(14, figheight))
     fig.subplots_adjust(left=0.02, hspace=.4, wspace=0.2)
 
-    fig.suptitle('DM Probe Cycle')
+    fig.suptitle('DM Probe Cycle', fontweight='bold', fontsize=14)
 
     for ax, ix in zip(subplot.flatten(), range(out.ts.n_probes)):
         im = ax.imshow(out.probe.DM_cmd_cycle[ix], interpolation='none', #origin='lower',
@@ -72,7 +72,7 @@ def plot_probe_response_cycle(out):
     fig, subplot = plt.subplots(nrows, ncols, figsize=(14, figheight))
     fig.subplots_adjust(left=0.02, hspace=.4, wspace=0.2)
 
-    fig.suptitle('DM Probe Cycle FP Phase Response')
+    fig.suptitle('DM Probe Cycle FP Phase Response', fontweight='bold', fontsize=14)
 
     for ax, ix in zip(subplot.flatten(), range(out.ts.n_probes)):
         probe_ft = (1 / np.sqrt(2 * np.pi)) * np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(out.probe.DM_cmd_cycle[ix])))
@@ -117,7 +117,7 @@ def plot_probe_response(out, ix):
     fig.suptitle(f"\nProbe Amp = {out.probe.amp}, " + r'$\theta$' + f"={out.ts.phase_cycle[ix] / np.pi:.3f}"
                  + r'$\pi$'+
                  f" \nDimensions {out.probe.width}x{out.probe.height}, spacing={out.probe.spacing}\n"
-                 )
+                 , fontweight='bold', fontsize=14)
 
     im1 = ax1.imshow(out.probe.DM_cmd_cycle[ix], interpolation='none')
     ax1.set_title(f"Probe on DM")
@@ -165,7 +165,7 @@ def plot_quick_coord_check(out, ix):
     fig, ax = plt.subplots(1, 1, figsize=(6, 5))
     fig.subplots_adjust(wspace=0.5, right=0.85)
 
-    fig.suptitle('Amplitude Interpolated onto MEC coordinates')
+    fig.suptitle('Amplitude Interpolated onto MEC coordinates', fontweight='bold', fontsize=14)
     im = ax.imshow(np.sqrt(fr_interp**2 + fi_interp**2), interpolation='none')
 
 
@@ -202,7 +202,7 @@ def plot_tweeter_fft(out):
     # ==================
     fig, subplot = plt.subplots(1, n_pairs, figsize=(14,5))
     fig.subplots_adjust(wspace=0.5, right=0.85)
-    fig.suptitle('Deltas for CDI Probes')
+    fig.suptitle('Deltas for CDI Probes', fontweight='bold', fontsize=14)
 
     for ax, ix in zip(subplot.flatten(), range(n_pairs)):
         im = ax.imshow(delta[ix]*1e6*mask2D, interpolation='none',
@@ -220,7 +220,7 @@ def plot_tweeter_fft(out):
 # ==================
     fig, subplot = plt.subplots(1, n_nulls, figsize=(14, 5))
     fig.subplots_adjust(wspace=0.5, right=0.85)
-    fig.suptitle('Original (Null-Probe) E-field')
+    fig.suptitle('Original (Null-Probe) E-field', fontweight='bold', fontsize=14)
 
     for ax, ix in zip(subplot.flatten(), range(n_nulls)):
         im = ax.imshow(np.abs(fp_seq[n_pairs + ix, 250:270, 150:170]) ** 2,  # , 250:270, 150:170  *mask2D
@@ -237,7 +237,7 @@ def plot_tweeter_fft(out):
 # ==================
     fig, subplot = plt.subplots(1, n_nulls, figsize=(14, 5))
     fig.subplots_adjust(wspace=0.5, right=0.85)
-    fig.suptitle('Estimated E-field')
+    fig.suptitle('Estimated E-field', fontweight='bold', fontsize=14)
 
     for ax, ix in zip(subplot.flatten(), range(n_nulls)):
         im = ax.imshow(np.abs(E_pupil[ix, 250:270, 150:170])**2,  # , 250:270, 150:170  *mask2D
@@ -290,30 +290,28 @@ def add_colorbar(im, aspect=20, pad_fraction=0.5, **kwargs):
     return im.axes.figure.colorbar(im, cax=cax, **kwargs)
 
 
-def scale_lD(samp, fn):
+def scale_lD(samp, fn, cw = 1e-6, D=7.89 ):
     """
     scales the focal plane into lambda/D units. Can use proper.prop_get_fratio to get the f_ratio that proper calculates
     at the focal plane. First convert the sampling in m/pix to rad/pix, then scale by the center wavelength lambda/D
     [rad].
 
-    :param samp: sampling of the wavefront in m/pix
-    :param fn: f# (focal ratio) of the beam in the focal plane
+    :param samp: sampling of the wavefront in [m/pix]
+    :param fn: f# (focal ratio) of the beam in the focal plane [unitless], default
+    :param cw: center wavelength in [m], default 1 micron
+    :param D: telescope entrance diameter in [m], default 7.89m=Subaru IR effective diameter
     :return:
     """
-    wvls = np.linspace(ap.wvl_range[0], ap.wvl_range[1], ap.n_wvl_init)
-    cent = np.int(np.floor(ap.n_wvl_final / 2))
-
-    if not samp.shape:
-        pass                # sampling is a single value
+    if samp.shape[0] == 1:
+        pass
     else:
         samp = samp[cent]  # sampling at the center wavelength
 
     # Convert to Angular Sampling Units via platescale
-    fl = fn * tp.entrance_d
+    fl = fn * entrance_d
     rad_scale = samp / fl
 
-    cw = wvls[cent]  # center wavelength
-    res = cw / tp.entrance_d
+    res = cw / D
 
     tic_spacing = np.linspace(0, sp.maskd_size, 5)  # 5 (number of ticks) is set by hand, arbitrarily chosen
     tic_labels = np.round(np.linspace(-rad_scale * sp.maskd_size / 2 , rad_scale * sp.maskd_size / 2 , 5)/res)  # nsteps must be same as tic_spacing
@@ -336,8 +334,8 @@ def get_fp_mask(cdi, thresh=1e-7):
              irng, jrng:
 
     """
-    nx = sp.grid_size
-    ny = sp.grid_size
+    nx = 146
+    ny = 140
     dm_act = cdi.nact
 
     fftA = (1 / np.sqrt(2 * np.pi) *
