@@ -9,8 +9,6 @@ generated as mkidpipeline.PhotonTable. Temporal cubes are generated and saved fo
 postprocess_MEC_CDI.py function.
 
 """
-import datetime
-
 import numpy as np
 import os
 import pickle
@@ -18,10 +16,9 @@ import time
 import warnings
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm, SymLogNorm
-import bisect
 
 from cdi_plots import plot_probe_response_cycle, plot_quick_coord_check, plot_probe_response, plot_probe_cycle
-import mkidpipeline as pipe
+# import mkidpipeline.photontable as pt
 from mec_cdi import CDI_params, Slapper  # need this to open .pkl files
 
 # Color Definitions (for terminal output warnings)
@@ -150,7 +147,7 @@ if __name__ == '__main__':
         pass
 
         ##  Create Photontable from h5
-        table1 = pipe.Photontable(file_h5)
+        table1 = pt.Photontable(file_h5)
         last_sec = cdi_zip.ts.elapsed_time + tstamps_from_h5_start[0]
         if last_sec > check_h5_duration(table1):
             warnings.warn(f'\n{CCYN}CDI Test Exceedes h5 duration')
@@ -224,8 +221,9 @@ if __name__ == '__main__':
                  tcube_regcycle=tcube_regcycle,
                  tcube_fullcycle=tcube_fullcycle,
                  # cmd_tstamps=cdi_zip.ts.cmd_tstamps,
-                 file_h5=file_h5,
-                 dm_file=dm_file)
+                 h5_fullpath=file_h5,
+                 h5_unix=h5_name_parts[0],
+                 rtc_zipfile=dm_file)
 
         # np.savez(f'{scratch_path}/MEC_{target_name}_{h5_name_parts[0]}_forJessica',
         #          file_h5=file_h5,
@@ -248,10 +246,11 @@ if __name__ == '__main__':
     # ax.imshow(cimg1, interpolation='none')  # [70:140,10:90,:]
     # plt.show()
     ## Probe Response (from mec_cdi.py)
-    plot_probe_response(cdi_zip, 0)
+    save_set = {'save': True, 'dm': dm_path, 'target': target_name, 'h5': h5_name_parts[0]}
+    plot_probe_response(cdi_zip, 0, save_set)
     # plot_probe_cycle(cdi_zip)
     # plot_probe_response_cycle(cdi_zip)
-    plot_quick_coord_check(cdi_zip, 0)
+    plot_quick_coord_check(cdi_zip, 0, save_set)
 
     ## Separating Probes & Null Steps by Temporal Cube type
     """
@@ -443,7 +442,7 @@ if __name__ == '__main__':
         ax4.plot(tax[s], oc[pix4[0], pix4[1], s], '.', label=l)
     ax4.set_title(f'Pixel {pix4}, Probe Region')
 
-    # plt.savefig(f'{dm_path}/plots/{target_name}_{h5_name_parts[0]}_tstream_pix.png')
+    plt.savefig(f'{dm_path}/plots/{target_name}_{h5_name_parts[0]}_tstream_pix.png')
 
 
     # ## Animation
@@ -507,7 +506,7 @@ if __name__ == '__main__':
     # DeltaP
     fig, subplot = plt.subplots(n_nulls, n_pairs, figsize=(12, 8))
     fig.subplots_adjust(wspace=0.5, right=0.85)
-    fig.suptitle(r'$\Delta$P for CDI Probes  '+
+    fig.suptitle(r'$\frac{I_i^+ + I_i^-}{2} - I_{null}$ for CDI Probes  ' +
                  f'target = {target_name}, {h5_name_parts[0]}{h5_name_parts[1]}\n'
                  f'Probe Amp = {cdi_zip.probe.amp}, N probes={cdi_zip.ts.n_probes}, '
                  f'N null steps={np.int(cdi_zip.ts.null_time / cdi_zip.ts.phase_integration_time)}, '
@@ -550,6 +549,8 @@ if __name__ == '__main__':
         ncols = cdi_zip.ts.n_probes
         figheight = 2
 
+    intensity = np.zeros((nrows*ncols))
+
     fig, subplot = plt.subplots(nrows, ncols, figsize=(12, 8))
     fig.subplots_adjust(left=0.05, hspace=.4, wspace=0.2)
 
@@ -561,13 +562,16 @@ if __name__ == '__main__':
         if ix < cdi_zip.ts.n_probes //2:
             im = ax.imshow(oc[:, :, ix].T, interpolation='none')  # [70:140,10:90,:]
             ax.set_title(f"Probe " + r'$\theta$=' + f'{cdi_zip.ts.phase_cycle[ix] / np.pi:.2f}' + r'$\pi$')
-            print(f'Total Intensity at step {ix} = {np.sum(oc[:, :, ix]):.1f}')
+            # print(f'Total Intensity at step {ix} = {np.sum(oc[:, :, ix]):.1f}')
+            intensity[ix] = np.sum(oc[:, :, ix])
         else:
             im = ax.imshow(oc[:, :, ix + cdi_zip.ts.n_probes].T, interpolation='none')  # [70:140,10:90,:]
             ax.set_title(f"Null {ix-cdi_zip.ts.n_probes //2}")
-            print(f'Total Intensity at step {ix} = {np.sum(oc[:, :, ix + cdi_zip.ts.n_probes])}')
+            # print(f'Total Intensity at step {ix} = {np.sum(oc[:, :, ix + cdi_zip.ts.n_probes])}')
+            intensity[ix] = np.sum(oc[:, :, ix + cdi_zip.ts.n_probes])
+    print(f'Avg Intensity for probed images is = {np.mean(intensity[0:ncols-1])}\n'
+          f'Avg intensity for unprobed images is = {np.mean(intensity[ncols:-1])}')
 
-    # warnings.simplefilter("ignore", category=UserWarning)
     cbar_ax = fig.add_axes([0.91, 0.1, 0.02, 0.8])  # Add axes for colorbar @ position [left,bottom,width,height]
     cb = fig.colorbar(im, cax=cbar_ax, orientation='vertical')  #
     cb.set_label(f'Counts', fontsize=12)
