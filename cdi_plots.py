@@ -12,6 +12,7 @@ from scipy import interpolate
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm, SymLogNorm
 import warnings
+import proper
 from mpl_toolkits import axes_grid1
 from mpl_toolkits.axes_grid1 import ImageGrid
 from matplotlib.collections import LineCollection
@@ -21,7 +22,7 @@ from matplotlib.collections import LineCollection
 # Plotting Probes and Probe Focal Plane Response
 # #########################################################################################################
 
-def plot_probe_cycle(out):
+def plot_probe_cycle(out, ss=False):
     """
     plots one complete 0->2pi cycle of the phase probes applied to the DM (DM coordinates)
 
@@ -52,8 +53,11 @@ def plot_probe_cycle(out):
     cb = fig.colorbar(im, cax=cbar_ax, orientation='vertical')  #
     cb.set_label(r'$\mu$m', fontsize=12)
 
+    if ss['save']:
+        plt.savefig(f"{ss['dm']}/plots/{ss['target']}_{ss['h5']}_probe_cycle.png")
 
-def plot_probe_response_cycle(out):
+
+def plot_probe_response_cycle(out, ss=False):
     """
     plots one complete 0->2pi cycle of the phase probes as seen in the focal plane of MEC
 
@@ -92,8 +96,11 @@ def plot_probe_response_cycle(out):
     cb = fig.colorbar(im, cax=cbar_ax, orientation='vertical')  #
     cb.set_label(r'$\theta$', fontsize=12)
 
+    if ss['save']:
+        plt.savefig(f"{ss['dm']}/plots/{ss['target']}_{ss['h5']}_response_cycle.png")
 
-def plot_probe_response(out, ix):
+
+def plot_probe_response(out, ix, ss):
     """
     plots the probe appled to the DM as well as its projected response in the focal plane in both amp/phase and
     real/imag
@@ -110,7 +117,7 @@ def plot_probe_response(out, ix):
     fi_interp = fi(np.linspace(0, probe_ft.shape[0], ny), np.linspace(0, probe_ft.shape[0], nx))
 
 
-    fig, ax = plt.subplots(3, 2, figsize=(8, 18))
+    fig, ax = plt.subplots(2, 3, figsize=(18, 8))
     fig.subplots_adjust(wspace=0.3, hspace=0.5)
     ax1, ax2, ax3, ax4, ax5, ax6 = ax.flatten()
 
@@ -125,19 +132,19 @@ def plot_probe_response(out, ix):
     ax1.set_ylabel('DM y-coord')
     #cb = fig.colorbar(im1, ax=ax1)
 
-    ax2.axis('off')
-    #ax2('off')
-
-    im3 = ax3.imshow(np.sqrt(fi_interp**2 + fr_interp**2), interpolation='none')
-    ax3.set_title("Focal Plane Amplitude")
-    ax3.set_xlabel('MEC x-coord')
-    ax3.set_ylabel('MEC y-coord')
+    im2 = ax2.imshow(np.sqrt(fi_interp**2 + fr_interp**2), interpolation='none')
+    ax2.set_title("Focal Plane Amplitude")
+    ax2.set_xlabel('MEC x-coord')
+    ax2.set_ylabel('MEC y-coord')
     #cb = fig.colorbar(im3, ax=ax3)
 
-    im4 = ax4.imshow(np.arctan2(fi_interp, fr_interp), interpolation='none', cmap='hsv')
-    ax4.set_title("Focal Plane Phase")
-    ax4.set_xlabel('MEC x-coord')
-    ax4.set_ylabel('MEC y-coord')
+    im3 = ax3.imshow(np.arctan2(fi_interp, fr_interp), interpolation='none', cmap='hsv')
+    ax3.set_title("Focal Plane Phase")
+    ax3.set_xlabel('MEC x-coord')
+    ax3.set_ylabel('MEC y-coord')
+
+    ax4.axis('off')
+    # ax2('off')
 
     im5 = ax5.imshow(fr_interp, interpolation='none')
     ax5.set_title(f"Real FT of Probe")
@@ -150,8 +157,11 @@ def plot_probe_response(out, ix):
     ax6.set_ylabel('MEC y-coord')
     # plt.show()  #block=False
 
+    if ss['save']:
+        plt.savefig(f"{ss['dm']}/plots/{ss['target']}_{ss['h5']}_response_cpx_rotated.png")
 
-def plot_quick_coord_check(out, ix):
+
+def plot_quick_coord_check(out, ix, ss=False):
     """Plots a quick check of the DM probes interpolated onto MEC FP coordinates"""
     probe_ft = (1 / np.sqrt(2 * np.pi)) * np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(out.probe.DM_cmd_cycle[ix])))
     nx = 140
@@ -168,6 +178,8 @@ def plot_quick_coord_check(out, ix):
     fig.suptitle('Amplitude Interpolated onto MEC coordinates', fontweight='bold', fontsize=14)
     im = ax.imshow(np.sqrt(fr_interp**2 + fi_interp**2), interpolation='none')
 
+    if ss['save']:
+        plt.savefig(f"{ss['dm']}/plots/{ss['target']}_{ss['h5']}_fft_mec.png")
 
 # #########################################################################################################
 # Plotting CDI post-processing Results
@@ -425,3 +437,34 @@ def close_loop_edges(edges):
         loop_list.append(np.array(loop))
 
     return loop_list
+
+
+def scale_lD(wfo):
+    """
+    scales the focal plane into lambda/D units. First convert the sampling in m/pix to rad/pix, then scale by the
+     center wavelength lambda/D [rad].
+
+    :param wfo: proper wavefront object
+    :return:
+    """
+    samp = proper.prop_get_sampling(wfo)
+    fn = proper.prop_get_fratio(wfo)
+    bd = wfo.diam
+    dumm=1
+    lmda = wfo.lamda
+    size = wfo.ngrid
+
+    # Convert to Angular Sampling Units via platescale
+    fl = fn * bd
+    rad_scale = samp / fl
+
+    res = lmda / bd
+
+    tic_spacing = np.linspace(0, size, 5)  # 5 (number of ticks) is set by hand, arbitrarily chosen
+    tic_labels = np.round(np.linspace(-rad_scale * size / 2 , rad_scale * size / 2 , 5)/res)  # nsteps must be same as tic_spacing
+    tic_spacing[0] = tic_spacing[0] + 1  # hack for edge effects
+    tic_spacing[-1] = tic_spacing[-1] - 1  # hack for edge effects
+
+    axlabel = (r'$\lambda$' + f'/D')
+
+    return tic_spacing, tic_labels, axlabel
