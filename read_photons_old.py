@@ -18,7 +18,7 @@ from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm, SymLogNorm
 
 from cdi_plots import plot_probe_response_cycle, plot_quick_coord_check, plot_probe_response, plot_probe_cycle
-from mkidpipeline.photontable import Photontable as pt
+# import mkidpipeline.photontable as pt
 from mec_cdi import CDI_params, Slapper  # need this to open .pkl files
 
 # Color Definitions (for terminal output warnings)
@@ -51,12 +51,12 @@ def datetime_to_unix(tstamp):
     return (tstamp - np.datetime64('1970-01-01T00:00:00')) / np.timedelta64(1, 's')
 
 
-# def check_h5_duration(table):
-#     photons = table.photonTable.read()
-#     frst_photon = photons['Time'].min()
-#     last_photon = photons['Time'].max()
-#     print(f'Last Photon {last_photon/1e6:.2f} sec after h5 start')
-#     return last_photon
+def check_h5_duration(table):
+    photons = table.photonTable.read()
+    frst_photon = photons['Time'].min()
+    last_photon = photons['Time'].max()
+    print(f'Last Photon {last_photon/1e6:.2f} sec after h5 start')
+    return last_photon
 
 
 def list_keys(file):
@@ -73,9 +73,15 @@ def list_keys(file):
 if __name__ == '__main__':
 
     ##
+    # target_name = 'Jan2021_test5'  # None
+    # dm_file = '/darkdata/kkdavis/mec/Jan2021/CDI_tseries_1-30-2021_T4:16.pkl'
+    # file_h5 = '/work/kkdavis/pipeline_out/20210129/1611980038.h5'
     target_name = 'Sept2021_runiii'  # None
     dm_file = '/darkdata/kkdavis/mec/Sept2021/pkl/CDI_tseries_9-2-2021_T19:21.pkl'
-    file_h5 = '/darkdata/kkdavis/mec/Sept2021/h5s/1630610456.h5'
+    file_h5 = '/darkdata/kkdavis/mec/Sept2021/h5s/1630610457.h5'
+
+    # target_name = 'Hip79124'  # None
+    # file_h5 ='/darkdata/steiger/MEC/20200705/Hip79124/1594023761.h5'  #
 
     # Nifty File Name Extraction--makes nice print statements and gets unix timestamp name for file saving later
     r1 = os.path.basename(dm_file)
@@ -122,6 +128,7 @@ if __name__ == '__main__':
     tstamps_from_h5_start = tstamps_as_unix - h5_start
     if tstamps_from_h5_start[0] < 0:
         plus = tstamps_from_h5_start > 0
+        # tstamps_from_h5_start = tstamps_from_h5_start[plus]#np.delete(tstamps_from_h5_start, plus)
 
     tstamps_from_tstamps_start = cdi_zip.ts.cmd_tstamps - cdi_zip.ts.cmd_tstamps[0]
     tstamps_from_tstamps_start = tstamps_from_tstamps_start.astype('float64') / 1e9
@@ -133,14 +140,16 @@ if __name__ == '__main__':
         loaded = np.load(existing, allow_pickle=True)
         tcube_fullcycle = loaded['tcube_fullcycle'].tolist()
         tcube_regcycle = loaded['tcube_regcycle'].tolist()
-
+        # tcube_fullcycle = np.load(f'{dm_path}/{target_name}_{h5_name_parts[0]}_temporalCube_regBins.npy', allow_pickle=True)  # SciOct2020_tcube_fullcycle_1602072901.npy
+        # tcube_regcycle = np.load(f'{dm_path}/{target_name}_{h5_name_parts[0]}_temporalCube_irregBins.npy', allow_pickle=True)
+        # cimg1 = np.load('/work/kkdavis/cdi/ScienceOct2020/SciOct2020_piximg_1602072901.npy')
     else:
         pass
 
         ##  Create Photontable from h5
-        table1 = pt(file_h5)
+        table1 = pt.Photontable(file_h5)
         last_sec = cdi_zip.ts.elapsed_time + tstamps_from_h5_start[0]
-        if last_sec > table1.stop_time:
+        if last_sec > check_h5_duration(table1):
             warnings.warn(f'\n{CCYN}CDI Test Exceedes h5 duration')
 
         ## Make Image Cube
@@ -187,9 +196,9 @@ if __name__ == '__main__':
         """
         print(f'\nMaking Temporal Cube-Full h5 Duration, bin spacing set by probe integration time')
         start_make_cube = time.time()
-        tcube_regcycle = table1.get_fits(cube_type='time', start=tstamps_from_h5_start[0],
-                                              duration=last_sec,
-                                              bin_width=cdi_zip.ts.phase_integration_time)
+        tcube_regcycle = table1.getTemporalCube(firstSec=tstamps_from_h5_start[0],
+                                              integrationTime=last_sec,
+                                              timeslice=cdi_zip.ts.phase_integration_time)
 
         end_make_cube = time.time()
         duration_make_tcube = end_make_cube - start_make_cube
@@ -199,7 +208,7 @@ if __name__ == '__main__':
         ## Temporal Cube full dataset--irregular bins
         print(f'\nMaking Temporal Cube-Full h5 Duration, bin spacing set by DM timestamps')
         start_make_cube = time.time()
-        tcube_fullcycle = table1.get_fits(cube_type='time', bin_edges=tstamps_from_h5_start)
+        tcube_fullcycle = table1.getTemporalCube(timeslices=tstamps_from_h5_start)
 
         end_make_cube = time.time()
         duration_make_tcube = end_make_cube - start_make_cube
