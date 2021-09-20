@@ -22,7 +22,7 @@ from matplotlib.collections import LineCollection
 # Plotting Probes and Probe Focal Plane Response
 # #########################################################################################################
 
-def plot_probe_cycle(out, ss=False):
+def plot_probe_cycle(out, ss=0):
     """
     plots one complete 0->2pi cycle of the phase probes applied to the DM (DM coordinates)
 
@@ -53,8 +53,9 @@ def plot_probe_cycle(out, ss=False):
     cb = fig.colorbar(im, cax=cbar_ax, orientation='vertical')  #
     cb.set_label(r'$\mu$m', fontsize=12)
 
-    if ss['save']:
-        plt.savefig(f"{ss['dm']}/plots/{ss['target']}_{ss['h5']}_probe_cycle.png")
+    # if ss['save']:
+    if ss is not 0:
+        plt.savefig(f"{ss['plt']}/{ss['target']}_{ss['h5']}_probe_cycle.png")
 
 
 def plot_probe_response_cycle(out, ss=False):
@@ -97,7 +98,7 @@ def plot_probe_response_cycle(out, ss=False):
     cb.set_label(r'$\theta$', fontsize=12)
 
     if ss['save']:
-        plt.savefig(f"{ss['dm']}/plots/{ss['target']}_{ss['h5']}_response_cycle.png")
+        plt.savefig(f"{ss['plt']}/{ss['target']}_{ss['h5']}_response_cycle.png")
 
 
 def plot_probe_response(out, ix, ss):
@@ -158,10 +159,10 @@ def plot_probe_response(out, ix, ss):
     # plt.show()  #block=False
 
     if ss['save']:
-        plt.savefig(f"{ss['dm']}/plots/{ss['target']}_{ss['h5']}_response_cpx_rotated.png")
+        plt.savefig(f"{ss['plt']}/{ss['target']}_{ss['h5']}_response_cpx_rotated.png")
 
 
-def plot_quick_coord_check(out, ix, ss=False):
+def plot_quick_coord_check(out, ix, ss=0):
     """Plots a quick check of the DM probes interpolated onto MEC FP coordinates"""
     probe_ft = (1 / np.sqrt(2 * np.pi)) * np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(out.probe.DM_cmd_cycle[ix])))
     nx = 140
@@ -178,8 +179,9 @@ def plot_quick_coord_check(out, ix, ss=False):
     fig.suptitle('Amplitude Interpolated onto MEC coordinates', fontweight='bold', fontsize=14)
     im = ax.imshow(np.sqrt(fr_interp**2 + fi_interp**2), interpolation='none')
 
-    if ss['save']:
-        plt.savefig(f"{ss['dm']}/plots/{ss['target']}_{ss['h5']}_fft_mec.png")
+    # if ss['save']:
+    if ss is not 0:
+        plt.savefig(f"{ss['plt']}/{ss['target']}_{ss['h5']}_fft_mec.png")
 
 # #########################################################################################################
 # Plotting CDI post-processing Results
