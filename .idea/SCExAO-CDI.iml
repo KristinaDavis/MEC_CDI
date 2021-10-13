@@ -6,7 +6,7 @@
     <content url="file://$USER_HOME$/Programs/pyMilk" />
     <content url="file://$USER_HOME$/mazinlab/MKIDCore" />
     <content url="file://$USER_HOME$/mazinlab/MKIDPipeline" />
-    <orderEntry type="jdk" jdkName="Remote Python 3.7.7 (sftp://kkdavis@glados.physics.ucsb.edu:22/home/kkdavis/.conda/envs/cdi-pipe/bin/python3.7)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Remote Python 3.7.10 (sftp://kkdavis@glados.physics.ucsb.edu:22/home/kkdavis/.conda/envs/pipeline/bin/python3)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
 </module>

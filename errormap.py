@@ -5,13 +5,10 @@
 #   PROPER developed at Jet Propulsion Laboratory/California Inst. Technology
 #   Original IDL version by John Krist
 #   Python translation by Navtej Saini, with Luis Marchen and Nikta Amiri
-
-
+import warnings
 
 import proper
 import numpy as np
-from readmap import readmap
-
 
 def errormap(wf, dm_map, xshift = 0., yshift = 0., **kwargs):
     """Read in a surface, wavefront, or amplitude error map from a FITS file. 
@@ -97,21 +94,62 @@ def errormap(wf, dm_map, xshift = 0., yshift = 0., **kwargs):
        ("MICRONS" in kwargs and kwargs["MICRONS"]):
         raise SystemExit("ERRORMAP: Cannot specify both NM and MICRONS")
 
-    # if ("XC_MAP" in kwargs or "YC_MAP" in kwargs or "SAMPLING" in kwargs):
-    #     if ("XC_MAP" in kwargs and "YC_MAP" in kwargs and "SAMPLING" in kwargs):
-    #         dmap = proper.prop_readmap(wf, filename, xshift, yshift, XC_MAP = kwargs["XC_MAP"],
-    #             YC_MAP = kwargs["YC_MAP"], SAMPLING = kwargs["SAMPLING"])
-    #     elif ("XC_MAP" in kwargs and "YC_MAP" in kwargs):
-    #         dmap = proper.prop_readmap(wf, filename, xshift, yshift, XC_MAP = kwargs['XC_MAP'],
-    #             YC_MAP = kwargs["YC_MAP"])
-    if "SAMPLING" in kwargs:
-        dmap = readmap(wf, dm_map, xshift, yshift, SAMPLING = kwargs['SAMPLING'])
+    # KD edit: try to get the dm map to apply only in regions of the beam
+    n = proper.prop_get_gridsize(wf)  # should be 128x128
+    new_sampling = proper.prop_get_sampling(wf)  #kwargs["SAMPLING"]  #*dm_map.shape[0]/npix_across_beam
+    if new_sampling > (kwargs["SAMPLING"] + kwargs["SAMPLING"]*.1) or \
+        new_sampling < (kwargs["SAMPLING"] - kwargs["SAMPLING"]*.1):
+            warnings.warn(f'User-defined beam ratio does not produce aperture sampling consistent with SCExAO actuator '
+                          f'spacing. May produce invalid results')
+
+    if not "XC_MAP" in kwargs:
+        s = dm_map.shape
+        xc = s[0] // 2
+        yc = s[1] // 2
     else:
-        dmap = dm_map
-    
-    
+        xc = kwargs["XC_MAP"]
+        yc = kwargs["YC_MAP"]
+
+    # resample dm_map to size of beam in the simulation
+    # grid = proper.prop_resamplemap(wf, dm_map, new_sampling, xc, yc, xshift, yshift)
+    dmap=np.zeros((wf.wfarr.shape[0],wf.wfarr.shape[1]))
+    r = dmap.shape
+    xrc = r[0] // 2
+    yrc = r[1] // 2
+    dmap[xrc-xc:xrc+xc, yrc-yc:yrc+yc] = dm_map
+
+    # Create mask to eliminate resampling artifacts outside of beam
+    h, w = wf.wfarr.shape[:2]
+    center = (int(w / 2), int(h / 2))
+    radius = np.ceil(h * kwargs['BR'] / 2)  #
+    # Making the Circular Boolean Mask
+    Y, X = np.mgrid[:h, :w]
+    dist_from_center = np.sqrt((X - center[0]) ** 2 + (Y - center[1]) ** 2)
+    inds = dist_from_center <= radius
+    # Applying the Mask to the dm_map
+    mask = np.zeros_like(dmap)
+    mask[inds] = 1
+    dmap *= mask
+
+    # Shift the center of dmap to 0,0
+    dmap = proper.prop_shift_center(dmap)
+
+    if kwargs['PLOT']:
+        import matplotlib.pyplot as plt
+        from matplotlib.colors import LogNorm, SymLogNorm
+
+        fig, subplot = plt.subplots(nrows=1,ncols=2, figsize=(12, 5))
+        ax1, ax2 = subplot.flatten()
+        fig.suptitle(f'RTC DM Voltage Maps')
+
+        ax1.imshow(dm_map, norm=SymLogNorm(1e-2))  # LogNorm(vmin=np.min(dm_map),vmax=np.max(dm_map))  SymLogNorm(1e-2)
+        ax1.set_title('DM Map Read In')
+        ax2.imshow(proper.prop_shift_center(dmap))  #  , cmap='hsv' must shift the center because
+        # proper assumes dmap center is 0,0, so we need to shift it back to plot properly
+        ax2.set_title('DM Map in Center of Proper simulated beam')
+
     if "ROTATEMAP" in kwargs or "MAGNIFY" in kwargs:
-        # readmap stores map with center at (0,0), so shift 
+        # readmap stores map with center at (0,0), so shift
         # before and after rotation
         dmap = proper.prop_shift_center(dmap)
         if "ROTATEMAP" in kwargs:
@@ -130,16 +168,29 @@ def errormap(wf, dm_map, xshift = 0., yshift = 0., **kwargs):
         dmap *= kwargs["MULTIPLY"]
         
     i = complex(0.,1.)
-    
+
+    # act_spacing = 2 * proper.prop_get_beamradius(wf) / 47
     if ("MIRROR_SURFACE" in kwargs and kwargs["MIRROR_SURFACE"]):
-        wf.wfarr *= np.exp(-4*np.pi*i/wf.lamda * dmap)
+        wf.wfarr *= np.exp(-2*np.pi*i/wf.lamda * dmap)  # Krist version
+        # wf.wfarr *= np.exp(2*np.pi*i/wf.lamda * dmap)  # using positive values based on prop_dm
+        # proper.prop_dm(wf, dm_map ,xc, yc, act_spacing) #new_sampling
+        # proper.prop_add_phase(wf, dmap)
     elif "WAVEFRONT" in kwargs:    
         wf.wfarr *= np.exp(2*np.pi*i/wf.lamda * dmap)
     elif "AMPLITUDE" in kwargs:    
         wf.wfarr *= dmap
     else:
         raise ValueError("ERRORMAP: Unspecified map type: Use MIRROR_SURFACE, WAVEFRONT, or AMPLITUDE")
-    
-    dmap = proper.prop_shift_center(dmap)
-    
+
+    # Unwrap Phase
+    from skimage.restoration import unwrap_phase
+    amp_map = proper.prop_get_amplitude(wf)
+    phs_map = proper.prop_get_phase(wf)
+    unwrapped = unwrap_phase(phs_map, wrap_around=[False, False])
+    wf.wfarr = proper.prop_shift_center(amp_map * np.cos(unwrapped) + 1j * amp_map * np.sin(unwrapped))
+
+    # check1 = proper.prop_get_sampling(wf)
+    # print(f"\n\tErrormap Sampling\n"
+    #       f"sampling in errormap.py is {check1 * 1e3:.4f} mm\n")
+
     return dmap

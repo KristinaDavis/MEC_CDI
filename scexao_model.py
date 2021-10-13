@@ -4,27 +4,26 @@ Kristina Davis
 
 
 """
-
-
 import numpy as np
-from inspect import getframeinfo, stack
 import proper
+import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm, SymLogNorm
 
 from SubaruPupil import SubaruPupil
 from errormap import errormap
+from cdi_plots import scale_lD
 
 #################################################################
 # SCExAO Optial Properties
 # ################################################################
 # SCExAO
-beam_ratio = 0.36
-
+beam_ratio = 0.3516  # 0.3516 gives aperture sampling of .4 mm (the actual dm pitch) at lambda=900 um
 entrance_d = 0.018  # size of beam on the DM is 18 mm^2
 
 # SCExAO Optics
 fl_SxOAPG = 0.255  # m focal length of Genera SCExAO lens (OAP1,3,4,5)
 fl_SxOAP2 = 0.519  # m focal length of SCExAO OAP 2
-d_SxOAPG = 0.051  # diameter of SCExAO OAP's are 2 inches=0.051 m
+d_SxOAPG = 0.0508  # diameter of SCExAO OAP's are 2 inches=0.051 m
 # These distances aren't actually working, so just doing very basic, 4F optical systems until further notice
 dist_SxOAP1_scexao = 0.1345  # m
 dist_scexao_sl2 = 0.2511 - dist_SxOAP1_scexao  # m
@@ -33,7 +32,7 @@ dist_sl2_focus = 0.1261  # m
 # ------------------------------
 # DM
 dm_act = 50  # SCExAO has 50x50 actuators
-dm_pitch = 0.0004  # [m] pixel pitch of the DM actuators --> sampling of the DM fits file=400 um/pix
+dm_pitch = 0.004  # [m] pixel pitch of the DM actuators --> sampling of the DM fits file=400 um/pix
 
 # ------------------------------
 # Coronagraph
@@ -47,7 +46,10 @@ lyot_size = 0.95  # units are in fraction of surface un-blocked
 mec1_fl = 0.1  # [m] optic 1 focal length = 100 mm
 mec2_fl = 0.009 # [m] optic 2 focal length = 9 mm
 mec3_fl = .3  # [m] optic 3 focal length = 300 mm
-
+# mec_l1_l2 = 0.0986536  # distance between lens 1 and lens2 in MEC optics, ==3.884 inches as seen on MEC_final.zmx
+mec_l1_l2 = 0.099  # distance between lens 1 and lens2 in MEC optics, ==3.884 inches as seen on MEC_final.zmx
+# mec_l2_l3 = (1.544+6.511+4.614)*25.4/1e3  # convert inches to m
+mec_l2_l3 = 0.023+0.164+0.124
 
 #################################################################################################
 # SCExAO Model
@@ -70,54 +72,119 @@ def scexao_model(lmda, grid_size, kwargs):
     proper.prop_define_entrance(wfo)  # normalizes abs intensity
 
     # Test Sampling
-    if kwargs['verbose']:
+    if kwargs['verbose'] and kwargs['ix']==0:
         check1 = proper.prop_get_sampling(wfo)
         print(f"\n\tDM Pupil Plane\n"
               f"sampling at aperture is {check1 * 1e3:.4f} mm\n"
               f"Total Sim is {check1 * 1e3 * grid_size:.2f}x{check1 * 1e3 * grid_size:.2f} mm\n"
-              f"Size of beam is {check1 * 1e3 * grid_size * beam_ratio:.4f} mm^2\n")
+              f"Diameter of beam is {check1 * 1e3 * grid_size * beam_ratio:.4f} mm over {grid_size * beam_ratio} pix\n")
+    # if kwargs['verbose'] and kwargs['ix']==0:
+    #     fig, subplot = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
+    #     ax1, ax2 = subplot.flatten()
+    #     fig.suptitle('SCExAO Model WFO prior to errormap', fontweight='bold', fontsize=14)
+    #     # ax.imshow(dm_map, interpolation='none')
+    #     ax1.imshow(np.abs(proper.prop_shift_center(wfo.wfarr))**2, interpolation='none')
+    #     ax1.set_title('Amplitude')
+    #     ax2.imshow(np.angle(proper.prop_shift_center(wfo.wfarr)), interpolation='none', vmin=0, vmax=2*np.pi)
+    #     ax2.set_title('Phase')
+
+    # SCExAO Reimaging 1
+    proper.prop_lens(wfo, fl_SxOAPG)
+    proper.prop_propagate(wfo, fl_SxOAPG * 2)  # move to second pupil
 
     ########################################
     # Import/Apply Actual DM Map
     # #######################################
-    dm_map = kwargs['map']
-    errormap(wfo, dm_map, SAMPLING=dm_pitch, MIRROR_SURFACE=True, MICRONS=True)
+    plot_flag = False
+    if kwargs['verbose'] and kwargs['ix']==0:
+        plot_flag=True
 
+    dm_map = kwargs['map']
+    # proper.prop_propagate(wfo, fl_SxOAPG)  # from tweeter-DM to OAP2
+    errormap(wfo, dm_map, SAMPLING=dm_pitch, MIRROR_SURFACE=True, BR=beam_ratio, PLOT=plot_flag)  # WAVEFRONT=True
+    # proper.prop_circular_aperture(wfo, entrance_d/2)
+
+    if kwargs['verbose'] and kwargs['ix']==0:
+        fig, subplot = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
+        ax1, ax2 = subplot.flatten()
+        fig.suptitle('SCExAO Model WFO after errormap', fontweight='bold', fontsize=14)
+        # ax.imshow(dm_map, interpolation='none')
+        ax1.imshow(np.abs(proper.prop_shift_center(wfo.wfarr))**2, interpolation='none')
+        ax1.set_title('Amplitude')
+        ax2.imshow(np.angle(proper.prop_shift_center(wfo.wfarr)), interpolation='none',
+                   vmin=-2*np.pi, vmax=2*np.pi)  # , cmap='hsv'
+        ax2.set_title('Phase')
     # ------------------------------------------------
-    proper.prop_propagate(wfo, fl_SxOAPG)  # from tweeter-DM to OAP2
+    # proper.prop_propagate(wfo, fl_SxOAPG)  # from tweeter-DM to OAP2
 
     # SCExAO Reimaging 2
-    proper.prop_propagate(wfo, fl_SxOAPG)
-    proper.prop_lens(wfo, fl_SxOAP2)
-    proper.prop_propagate(wfo, fl_SxOAP2)  # exits the DM telescope system
+    proper.prop_lens(wfo, fl_SxOAPG)
+    proper.prop_propagate(wfo, fl_SxOAPG)  # focus at exit of DM telescope system
+    proper.prop_lens(wfo, fl_SxOAPG)
+    proper.prop_propagate(wfo, fl_SxOAPG)  # focus at exit of DM telescope system
 
     # # Coronagraph
-    # wfo.loop_collection(cg.coronagraph, occulter_mode=cg_type, plane_name='coronagraph')
-    SubaruPupil(wfo)  # focal plane mask
+    # SubaruPupil(wfo)  # focal plane mask
+    if kwargs['verbose'] and kwargs['ix']==0:
+        fig, subplot = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
+        ax1, ax2 = subplot.flatten()
+        fig.suptitle('SCExAO Model WFO after FPM', fontweight='bold', fontsize=14)
+        # ax.imshow(dm_map, interpolation='none')
+        ax1.imshow(np.abs(proper.prop_shift_center(wfo.wfarr))**2, interpolation='none', norm=LogNorm(vmin=1e-7,vmax=1e-2))
+        ax1.set_title('Amplitude')
+        ax2.imshow(np.angle(proper.prop_shift_center(wfo.wfarr)), interpolation='none',
+                   vmin=-2*np.pi, vmax=2*np.pi)  # , cmap='hsv'
+        ax2.set_title('Phase')
     proper.prop_propagate(wfo, fl_SxOAPG)
     proper.prop_lens(wfo, fl_SxOAPG)
     proper.prop_propagate(wfo, fl_SxOAPG)  # middle of 2f system
     proper.prop_circular_aperture(wfo, lyot_size, NORM=True)  # lyot stop
     proper.prop_propagate(wfo, fl_SxOAPG)  #
     proper.prop_lens(wfo, fl_SxOAPG)  # exit lens of gaussian telescope
-    proper.prop_propagate(wfo, fl_SxOAPG)  # to final focal plane
+    proper.prop_propagate(wfo, fl_SxOAPG)  # to final SCExAO focal plane
 
-    ########################################
-    # Focal Plane
-    # #######################################
+    # ##################################
+    # MEC Optics Box
+    # ###################################
+    # proper.prop_propagate(wfo, .210)  # mec1_fl
+    # proper.prop_lens(wfo, mec1_fl)
+    # proper.prop_propagate(wfo, mec_l1_l2)
+    # proper.prop_lens(wfo, mec2_fl)
+    # proper.prop_propagate(wfo, mec_l2_l3)
+    # proper.prop_lens(wfo, mec3_fl)
+    # proper.prop_propagate(wfo, .432)  # .296, .432
+    #
+    # ########################################
+    # # Focal Plane
+    # # #######################################
     # Check Sampling in focal plane
     # shifts wfo from Fourier Space (origin==lower left corner) to object space (origin==center)
     # proper.prop_shift_center(wfo.wfarr)
-    wf, samp = proper.prop_end(wfo, NoAbs=True)
+    # wf, samp = proper.prop_end(wfo, NoAbs=True)
+    wf = proper.prop_shift_center(wfo.wfarr)
+    samp = proper.prop_get_sampling(wfo)
     # cpx_planes, sampling = wfo.focal_plane()
-    smpling = proper.prop_get_sampling_arcsec(wfo)
+    smp_asec = proper.prop_get_sampling_arcsec(wfo)
 
-    if kwargs['verbose']:
-        print(f"\n\tFocal Plane\n"
-              f"sampling at focal plane is {smpling * 1e3:.4f} mas\n"
-              f"\tfull FOV is {smpling * grid_size * 1e3:.2f} mas")
+    if kwargs['verbose'] and kwargs['ix'] == 0:
+        fig, ax = plt.subplots(nrows=1, ncols=1)
+        fig.suptitle('SCExAO Model Focal Plane', fontweight='bold', fontsize=14)
+        ax.imshow(np.abs(wf)**2, interpolation='none',
+                  norm=LogNorm(vmin=1e-7,vmax=1e-2))  # np.abs(proper.prop_shift_center(wfo.wfarr))**2
+        tic_spacing, tic_labels, axlabel = scale_lD(wfo)
+        tic_spacing[0] = tic_spacing[0] + 1  # hack for edge effects
+        tic_spacing[-1] = tic_spacing[-1] - 1  # hack for edge effects
+        plt.xticks(tic_spacing, tic_labels, fontsize=6)
+        plt.yticks(tic_spacing, tic_labels, fontsize=6)
+        plt.ylabel(axlabel, fontsize=8)
+
+    if kwargs['verbose'] and kwargs['ix']==0:
+        print(f"\nFocal Plane\n"
+              f"sampling at focal plane is {smp_asec * 1e3:.4f} mas\n"
+              f"\tfull FOV is {smp_asec * grid_size * 1e3:.2f} mas")
         s_rad = proper.prop_get_sampling_radians(wfo)
-        print(f"sampling at focal plane is {s_rad * 1e6:.6f} urad")
+        # print(f"sampling at focal plane is {s_rad * 1e6:.6f} urad")
+        print(f'final focal ratio is {proper.prop_get_fratio(wfo)}')
 
         print(f"Finished simulation")
 
@@ -125,3 +192,9 @@ def scexao_model(lmda, grid_size, kwargs):
 
 
 
+"""
+# use PSF tilt for checking PSF
+    # dm_map = proper.prop_zernikes(wfo, [2, 3], np.array([5, 1]))  # zernike[2,3] = x,y tilt
+    # print(f'dm_map shape using zernikes is {dm_map.shape}')
+    
+"""

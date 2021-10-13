@@ -213,7 +213,7 @@ def config_probe(cdi, theta, nact):
     else:
         raise ValueError('probe direction value not understood; must be string "X" or "Y"')
     probe = cdi.probe_amp * np.sinc(cdi.probe_w * X) * np.sinc(cdi.probe_h * Y) \
-            * np.sin(2*np.pi*cdi.probe_spacing * dir + theta)
+            * np.cos(2*np.pi*cdi.probe_spacing * dir + theta)
 
     return probe
 
