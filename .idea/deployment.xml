@@ -1,20 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="kkdavis@glados.physics.ucsb.edu:22 (2)" remoteFilesAllowedToDisappearOnAutoupload="false">
+  <component name="PublishConfigData" autoUpload="Always" serverName="kkdavis@glados.physics.ucsb.edu:22 password" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
       <paths name="dark">
         <serverdata>
           <mappings>
             <mapping deploy="/scratch/CaptainKay/CDI" local="$PROJECT_DIR$" web="/" />
-          </mappings>
-        </serverdata>
-      </paths>
-      <paths name="glados-cdi">
-        <serverdata>
-          <mappings>
-            <mapping local="$PROJECT_DIR$" web="/" />
-            <mapping local="$USER_HOME$/mazinlab/MKIDCore" web="/" />
-            <mapping local="$USER_HOME$/mazinlab/MKIDPipeline" web="/" />
           </mappings>
         </serverdata>
       </paths>
@@ -24,17 +15,19 @@
             <mapping deploy="/work/kkdavis/src/MEC_CDI" local="$PROJECT_DIR$" web="/" />
             <mapping deploy="/work/kkdavis/src/MKIDCore" local="$USER_HOME$/mazinlab/MKIDCore" web="/" />
             <mapping deploy="/work/kkdavis/src/MKIDPipeline" local="$USER_HOME$/mazinlab/MKIDPipeline" web="/" />
-            <mapping deploy="/work/kkdavis/src/pyMilk" local="$USER_HOME$/Programs/pyMilk" />
-            <mapping deploy="/work/kkdavis/src/proper_v3.2.5_python_3.x" local="$USER_HOME$/Programs/Proper3.1.1" />
+            <mapping deploy="/work/kkdavis/src/pyMilk" local="$USER_HOME$/Programs/pyMilk" web="/" />
+            <mapping deploy="/work/kkdavis/src/proper_v3.2.5_python_3.x" local="$USER_HOME$/Programs/Proper3.1.1" web="/" />
           </mappings>
         </serverdata>
       </paths>
-      <paths name="kkdavis@glados.physics.ucsb.edu:22 (2)">
+      <paths name="kkdavis@glados.physics.ucsb.edu:22 password">
         <serverdata>
           <mappings>
-            <mapping local="$PROJECT_DIR$" web="/" />
-            <mapping local="$USER_HOME$/mazinlab/MKIDCore" web="/" />
-            <mapping local="$USER_HOME$/mazinlab/MKIDPipeline" web="/" />
+            <mapping deploy="/work/kkdavis/src/MEC_CDI" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/work/kkdavis/src/MKIDPipeline" local="$USER_HOME$/mazinlab/MKIDPipeline" web="/" />
+            <mapping deploy="/work/kkdavis/src/MKIDCore" local="$USER_HOME$/mazinlab/MKIDCore" web="/" />
+            <mapping deploy="/work/kkdavis/src/proper_v3.2.5_python_3.x" local="$USER_HOME$/Programs/Proper3.1.1" web="/" />
+            <mapping deploy="/work/kkdavis/src/pyMilk" local="$USER_HOME$/Programs/pyMilk" web="/" />
           </mappings>
         </serverdata>
       </paths>
