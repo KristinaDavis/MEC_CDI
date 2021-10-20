@@ -32,7 +32,7 @@ dist_sl2_focus = 0.1261  # m
 # ------------------------------
 # DM
 dm_act = 50  # SCExAO has 50x50 actuators
-dm_pitch = 0.004  # [m] pixel pitch of the DM actuators --> sampling of the DM fits file=400 um/pix
+dm_pitch = 0.0004  # [m] pixel pitch of the DM actuators --> sampling of the DM fits file=400 um/pix
 
 # ------------------------------
 # Coronagraph
@@ -43,13 +43,16 @@ lyot_size = 0.95  # units are in fraction of surface un-blocked
 
 # ------------------------------
 # MEC Optics
+mec_parax_fl = 0.1  # [m] paraxial lens (pickoff lens?) focal length
 mec1_fl = 0.1  # [m] optic 1 focal length = 100 mm
 mec2_fl = 0.009 # [m] optic 2 focal length = 9 mm
 mec3_fl = .3  # [m] optic 3 focal length = 300 mm
-# mec_l1_l2 = 0.0986536  # distance between lens 1 and lens2 in MEC optics, ==3.884 inches as seen on MEC_final.zmx
-mec_l1_l2 = 0.099  # distance between lens 1 and lens2 in MEC optics, ==3.884 inches as seen on MEC_final.zmx
-# mec_l2_l3 = (1.544+6.511+4.614)*25.4/1e3  # convert inches to m
-mec_l2_l3 = 0.023+0.164+0.124
+# mec_l1_l2 = 0.104916  # distance between lens 1 and lens2 in MEC optics, 104.916 mm as seen on MEC_final.zmx
+mec_l1_l2 = mec1_fl + mec2_fl  # mec1_fl+mec2_fl = 109 mm
+mec_l2_l3 = 0.32868  # 0.32868 from the zemax model, colimized beam so doesn't matter much how far
+mec_l3_focus = mec3_fl  # reading off the zemax file  (11.5/2) + 140.25+12.7+25.8+10+4+20+83.5==302.0 mm
+# mec_l1_l2 = 0.0986536  # distance between lens 1 and lens2 in MEC optics, ==3.884 inches as seen on MEC_final.cad
+# mec_l2_l3 = (1.544+6.511+4.614)*25.4/1e3 == 321.792 mm  # convert inches to m, reading off CAD model
 
 #################################################################################################
 # SCExAO Model
@@ -77,20 +80,13 @@ def scexao_model(lmda, grid_size, kwargs):
         print(f"\n\tDM Pupil Plane\n"
               f"sampling at aperture is {check1 * 1e3:.4f} mm\n"
               f"Total Sim is {check1 * 1e3 * grid_size:.2f}x{check1 * 1e3 * grid_size:.2f} mm\n"
-              f"Diameter of beam is {check1 * 1e3 * grid_size * beam_ratio:.4f} mm over {grid_size * beam_ratio} pix\n")
-    # if kwargs['verbose'] and kwargs['ix']==0:
-    #     fig, subplot = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
-    #     ax1, ax2 = subplot.flatten()
-    #     fig.suptitle('SCExAO Model WFO prior to errormap', fontweight='bold', fontsize=14)
-    #     # ax.imshow(dm_map, interpolation='none')
-    #     ax1.imshow(np.abs(proper.prop_shift_center(wfo.wfarr))**2, interpolation='none')
-    #     ax1.set_title('Amplitude')
-    #     ax2.imshow(np.angle(proper.prop_shift_center(wfo.wfarr)), interpolation='none', vmin=0, vmax=2*np.pi)
-    #     ax2.set_title('Phase')
+              f"Diameter of beam is {check1 * 1e3 * grid_size * beam_ratio:.4f} mm over {grid_size * beam_ratio} pix")
 
     # SCExAO Reimaging 1
-    proper.prop_lens(wfo, fl_SxOAPG)
+    proper.prop_lens(wfo, fl_SxOAPG)  # produces f#14 beam (approx exit beam of AO188)
     proper.prop_propagate(wfo, fl_SxOAPG * 2)  # move to second pupil
+    if kwargs['verbose'] and kwargs['ix']==0:
+        print(f"initial f# is {proper.prop_get_fratio(wfo):.2f}\n")
 
     ########################################
     # Import/Apply Actual DM Map
@@ -100,9 +96,7 @@ def scexao_model(lmda, grid_size, kwargs):
         plot_flag=True
 
     dm_map = kwargs['map']
-    # proper.prop_propagate(wfo, fl_SxOAPG)  # from tweeter-DM to OAP2
-    errormap(wfo, dm_map, SAMPLING=dm_pitch, MIRROR_SURFACE=True, BR=beam_ratio, PLOT=plot_flag)  # WAVEFRONT=True
-    # proper.prop_circular_aperture(wfo, entrance_d/2)
+    errormap(wfo, dm_map, SAMPLING=dm_pitch, MIRROR_SURFACE=True, BR=beam_ratio, PLOT=plot_flag)  # MICRONS=True
 
     if kwargs['verbose'] and kwargs['ix']==0:
         fig, subplot = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
@@ -111,12 +105,11 @@ def scexao_model(lmda, grid_size, kwargs):
         # ax.imshow(dm_map, interpolation='none')
         ax1.imshow(np.abs(proper.prop_shift_center(wfo.wfarr))**2, interpolation='none')
         ax1.set_title('Amplitude')
-        ax2.imshow(np.angle(proper.prop_shift_center(wfo.wfarr)), interpolation='none',
-                   vmin=-2*np.pi, vmax=2*np.pi)  # , cmap='hsv'
+        ax2.imshow(np.angle(proper.prop_shift_center(wfo.wfarr)), interpolation='none',  # phs
+                   vmin=-1*np.pi, vmax=1*np.pi, cmap='hsv')  # , cmap='hsv'
         ax2.set_title('Phase')
-    # ------------------------------------------------
-    # proper.prop_propagate(wfo, fl_SxOAPG)  # from tweeter-DM to OAP2
 
+    # ------------------------------------------------
     # SCExAO Reimaging 2
     proper.prop_lens(wfo, fl_SxOAPG)
     proper.prop_propagate(wfo, fl_SxOAPG)  # focus at exit of DM telescope system
@@ -125,52 +118,62 @@ def scexao_model(lmda, grid_size, kwargs):
 
     # # Coronagraph
     # SubaruPupil(wfo)  # focal plane mask
-    if kwargs['verbose'] and kwargs['ix']==0:
-        fig, subplot = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
-        ax1, ax2 = subplot.flatten()
-        fig.suptitle('SCExAO Model WFO after FPM', fontweight='bold', fontsize=14)
-        # ax.imshow(dm_map, interpolation='none')
-        ax1.imshow(np.abs(proper.prop_shift_center(wfo.wfarr))**2, interpolation='none', norm=LogNorm(vmin=1e-7,vmax=1e-2))
-        ax1.set_title('Amplitude')
-        ax2.imshow(np.angle(proper.prop_shift_center(wfo.wfarr)), interpolation='none',
-                   vmin=-2*np.pi, vmax=2*np.pi)  # , cmap='hsv'
-        ax2.set_title('Phase')
+    # if kwargs['verbose'] and kwargs['ix']==0:
+    #     fig, subplot = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
+    #     ax1, ax2 = subplot.flatten()
+    #     fig.suptitle('SCExAO Model WFO after FPM', fontweight='bold', fontsize=14)
+    #     # ax.imshow(dm_map, interpolation='none')
+    #     ax1.imshow(np.abs(proper.prop_shift_center(wfo.wfarr))**2, interpolation='none', norm=LogNorm(vmin=1e-7,vmax=1e-2))
+    #     ax1.set_title('Amplitude')
+    #     ax2.imshow(np.angle(proper.prop_shift_center(wfo.wfarr)), interpolation='none',
+    #                vmin=-2*np.pi, vmax=2*np.pi, cmap='hsv')  # , cmap='hsv'
+    #     ax2.set_title('Phase')
     proper.prop_propagate(wfo, fl_SxOAPG)
     proper.prop_lens(wfo, fl_SxOAPG)
     proper.prop_propagate(wfo, fl_SxOAPG)  # middle of 2f system
     proper.prop_circular_aperture(wfo, lyot_size, NORM=True)  # lyot stop
     proper.prop_propagate(wfo, fl_SxOAPG)  #
     proper.prop_lens(wfo, fl_SxOAPG)  # exit lens of gaussian telescope
-    proper.prop_propagate(wfo, fl_SxOAPG)  # to final SCExAO focal plane
+    proper.prop_propagate(wfo, fl_SxOAPG)  # to focus
+
+    # MEC Pickoff reimager
+    proper.prop_propagate(wfo, mec_parax_fl)  # to another pupil
+    proper.prop_lens(wfo, mec_parax_fl)  # collimating lens, pupil size should be 8 mm
+    proper.prop_propagate(wfo, mec1_fl+.0142557)  # mec1_fl  .054  mec1_fl+.0101057
+    # if kwargs['verbose'] and kwargs['ix']==0:
+    #     current = proper.prop_get_beamradius(wfo)
+    #     print(f'Beam Radius after SCExAO exit (at MEC foreoptics entrance) is {current*1e3:.3f} mm\n'
+    #           f'current f# is {proper.prop_get_fratio(wfo):.2f}\n')
 
     # ##################################
     # MEC Optics Box
     # ###################################
-    # proper.prop_propagate(wfo, .210)  # mec1_fl
-    # proper.prop_lens(wfo, mec1_fl)
-    # proper.prop_propagate(wfo, mec_l1_l2)
-    # proper.prop_lens(wfo, mec2_fl)
-    # proper.prop_propagate(wfo, mec_l2_l3)
-    # proper.prop_lens(wfo, mec3_fl)
-    # proper.prop_propagate(wfo, .432)  # .296, .432
-    #
-    # ########################################
-    # # Focal Plane
-    # # #######################################
+    proper.prop_circular_aperture(wfo, 0.00866)  # reading off the zemax diameter
+    proper.prop_lens(wfo, mec1_fl)  # MEC lens 1
+    proper.prop_propagate(wfo, mec_l1_l2)  # there is a image plane at z=mec1_fl
+    proper.prop_lens(wfo, mec2_fl)  # MEC lens 2 (tiny lens)
+    proper.prop_propagate(wfo, mec_l2_l3)
+    proper.prop_lens(wfo, mec3_fl)  # MEC lens 3
+    proper.prop_propagate(wfo, mec3_fl)  # .302 mec_l3_focus
+
+    # #######################################
+    # Focal Plane
+    # #######################################
     # Check Sampling in focal plane
     # shifts wfo from Fourier Space (origin==lower left corner) to object space (origin==center)
-    # proper.prop_shift_center(wfo.wfarr)
     # wf, samp = proper.prop_end(wfo, NoAbs=True)
     wf = proper.prop_shift_center(wfo.wfarr)
     samp = proper.prop_get_sampling(wfo)
-    # cpx_planes, sampling = wfo.focal_plane()
     smp_asec = proper.prop_get_sampling_arcsec(wfo)
 
     if kwargs['verbose'] and kwargs['ix'] == 0:
-        fig, ax = plt.subplots(nrows=1, ncols=1)
+        fig, subplot = plt.subplots(nrows=1, ncols=2, figsize=(12,5))
+        ax1, ax2 = subplot.flatten()
         fig.suptitle('SCExAO Model Focal Plane', fontweight='bold', fontsize=14)
-        ax.imshow(np.abs(wf)**2, interpolation='none',
-                  norm=LogNorm(vmin=1e-7,vmax=1e-2))  # np.abs(proper.prop_shift_center(wfo.wfarr))**2
+        ax1.imshow(np.abs(wf)**2, interpolation='none',
+                  norm=LogNorm(vmin=1e-9,vmax=1e-2))  # np.abs(proper.prop_shift_center(wfo.wfarr))**2
+        ax2.imshow(np.angle(wf), interpolation='none',
+                   vmin=-np.pi, vmax=np.pi, cmap='hsv')
         tic_spacing, tic_labels, axlabel = scale_lD(wfo)
         tic_spacing[0] = tic_spacing[0] + 1  # hack for edge effects
         tic_spacing[-1] = tic_spacing[-1] - 1  # hack for edge effects
@@ -197,4 +200,19 @@ def scexao_model(lmda, grid_size, kwargs):
     # dm_map = proper.prop_zernikes(wfo, [2, 3], np.array([5, 1]))  # zernike[2,3] = x,y tilt
     # print(f'dm_map shape using zernikes is {dm_map.shape}')
     
+    
+ # # Create mask to eliminate resampling artifacts outside of beam
+    # h, w = wfo.wfarr.shape[:2]
+    # center = (int(w / 2), int(h / 2))
+    # radius = np.ceil(h * beam_ratio / 2)  #
+    # # Making the Circular Boolean Mask
+    # Y, X = np.mgrid[:h, :w]
+    # dist_from_center = np.sqrt((X - center[0]) ** 2 + (Y - center[1]) ** 2)
+    # inds = dist_from_center <= radius
+    # # Applying the Mask to the dm_map
+    # # mask = np.zeros_like(wfo.wfarr)
+    # mask = np.zeros((h,w))
+    # mask[inds] = 1
+    # phs = np.angle(proper.prop_shift_center(wfo.wfarr))
+    # phs *= mask
 """

@@ -106,7 +106,7 @@ def cdi_postprocess(fp_seq, cdi_zip, map_dir=None, plot=False, debug=False):
         # Saving DM map that matches closest prior probe command
         flat = get_standard_flat(debug=False)
         # Probes
-        for ix in range(len(cmds_probe_only)):  #
+        for ix in range(2):  # len(cmds_probe_only)
             map_ts, dm_map, ixsync = sync_tstep(ix, cmds_probe_only, txts, tt)
             probe_tstamps[ix] = map_ts[ixsync]
             probe_maps[ix] = dm_map[ixsync, :, :]
@@ -114,7 +114,7 @@ def cdi_postprocess(fp_seq, cdi_zip, map_dir=None, plot=False, debug=False):
             cpx_dm_sim[ix], smp = proper.prop_run('scexao_model', .9, sim_grid,  # for some reason 0.9 gives 900 nm
                                              PASSVALUE={'map':probe_maps[ix]*1e-6,'verbose':debug, 'ix':ix}, QUIET=True)
         # Nulls
-        for ix in range(len(cmds_nulls_only)):
+        for ix in range(2):  # len(cmds_nulls_only)
             map_ts, dm_map, ixsync = sync_tstep(ix, cmds_nulls_only, txts, tt)
             null_tstamps[ix] = map_ts[ixsync]
             null_maps[ix] = dm_map[ixsync, :, :]-flat
@@ -137,51 +137,29 @@ def cdi_postprocess(fp_seq, cdi_zip, map_dir=None, plot=False, debug=False):
         cpx_all_1 = np.zeros((n_pairs*2+n_nulls, nx, ny), dtype=complex)
         cpx_all = np.zeros((len(reg_msk), nx, ny), dtype=complex)
 
-        # flat = 900e-9/1e6 * get_standard_flat(debug=False)  # standard flat
-        # flat = np.ones((50,50),dtype=float)  # empty
+        flat = 900e-9/1e6 * get_standard_flat(debug=False)  # standard flat
+        # flat = np.zeros((50,50),dtype=float)  # empty
         # cos function
-        dmx, dmy = np.meshgrid(
-            np.linspace(-0.5, 0.5, 50),
-            np.linspace(-0.5, 0.5, 50))
-
-        xm = dmx * 12 * 2.0 * np.pi
-        ym = dmy * 2.0 * np.pi
-        flat = 1e-7*np.sin(xm)
-        # Test Probe
+        # dmx, dmy = np.meshgrid(
+        #     np.linspace(-0.5, 0.5, 50),
+        #     np.linspace(-0.5, 0.5, 50))
+        #
+        # xm = dmx * 12 * 2.0 * np.pi
+        # ym = dmy * 2.0 * np.pi
+        # flat = 1e-8*np.sin(xm)
+        # # # Test Probe
         # x = np.linspace(-1/2 - 5/50, 1/2 - 5/50, 50, dtype=np.float32)
         # y = np.linspace(-1/2 - 5/50, 1/2 - 5/50, 50, dtype=np.float32)
         # X,Y = np.meshgrid(x,y)
-        # flat =  np.sinc(30 * X) * np.sinc(15 * Y) * np.cos(2 * np.pi * 10 * Y + np.pi/4)
-
-        # #
-        # fig, ax = plt.subplots(nrows=1, ncols=1)
-        # fig.suptitle('Flat', fontweight='bold', fontsize=14)
-        # ax.imshow(flat, interpolation='none', norm=SymLogNorm(1e-2))  # np.abs(proper.prop_shift_center(wfo.wfarr))**2
+        # flat =  np.sinc(10 * X) * np.sinc(5 * Y) * np.cos(2 * np.pi * 10 * Y + np.pi/4)
 
         # complex of all maps from the probe pattern
         # last probe in the command cycle is the null
         for ix in range(len(cdi_zip.probe.DM_cmd_cycle)):
-            map = flat #+ cdi_zip.probe.DM_cmd_cycle[ix]   #TODO replace flat + cmd
+            map = 1e-6 * (flat + cdi_zip.probe.DM_cmd_cycle[ix])   #TODO replace flat + cmd
             # cpx_all_sim[ix] = basic_fft(map, 128, 128)
             cpx_all_sim[ix], smp = proper.prop_run('scexao_model', .9, sim_grid,
                                               PASSVALUE={'map': map, 'verbose': debug, 'ix':ix}, QUIET=True)
-            # cpx_all_sim[ix], smp = proper.prop_run('dummy_telescope', 900e-9, sim_grid,
-            #                                   PASSVALUE={'map': map, 'verbose': debug, 'ix':ix}, QUIET=True)
-        # Complex Focal Plane Map
-        # fig, subplot = plt.subplots(2, cdi_zip.ts.n_probes // 2, figsize=(14, 8))
-        # fig.suptitle(f'Propogated Intensity through SCExAO Model (probes): '
-        #              f'target = {target_name}\n'
-        #              f' N probes={cdi_zip.ts.n_probes}, '
-        #              f'N null steps={int(cdi_zip.ts.null_time / cdi_zip.ts.phase_integration_time)}, '
-        #              f'integration time={cdi_zip.ts.phase_integration_time} sec', fontweight='bold', fontsize=14)
-
-        # for ax, ix in zip(subplot.flatten(), range(cdi_zip.ts.n_probes)):
-        #     im = ax.imshow(np.abs(cpx_all_sim[ix]) ** 2, norm=LogNorm())
-        #     # ax.set_title(f"t={(probe_tstamps[ix] - cdi_zip.ts.cmd_tstamps[0]).astype('float') / 1e9:.2f}")
-        #
-        # cax = fig.add_axes([0.91, 0.2, 0.02, 0.6])  # Add axes for colorbar @ position [left,bottom,width,height]
-        # cb = fig.colorbar(im, orientation='vertical', cax=cax)  #
-        # cb.set_label(f'DM actuator height (' + r'$\mu$' + 'm, uncalibrated)')
 
         # Copying FP Null image for n_nulls steps
         ix=0
@@ -257,7 +235,7 @@ def cdi_postprocess(fp_seq, cdi_zip, map_dir=None, plot=False, debug=False):
 
         for ax, ix in zip(subplot.flatten(), range(n_probes)):
             im = ax.imshow(np.abs(cpx_dm[ix])**2, interpolation='none',
-                  norm=LogNorm(vmin=1e-7,vmax=1e-2)
+                  norm=LogNorm(vmin=1e-9,vmax=1e-2)
                            )
             ax.set_title(f"t={probe_tstamps[ix] - (cdi_zip.ts.cmd_tstamps[0]).astype('float')/1e9:.2f}")
 

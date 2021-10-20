@@ -99,6 +99,8 @@ def errormap(wf, dm_map, xshift = 0., yshift = 0., **kwargs):
     new_sampling = proper.prop_get_sampling(wf)  #kwargs["SAMPLING"]  #*dm_map.shape[0]/npix_across_beam
     if new_sampling > (kwargs["SAMPLING"] + kwargs["SAMPLING"]*.1) or \
         new_sampling < (kwargs["SAMPLING"] - kwargs["SAMPLING"]*.1):
+            print(f'User-defined samping is {kwargs["SAMPLING"]:.6f} but proper wavefront has sampling of '
+                  f'{new_sampling:.6f}')
             warnings.warn(f'User-defined beam ratio does not produce aperture sampling consistent with SCExAO actuator '
                           f'spacing. May produce invalid results')
 
@@ -169,9 +171,8 @@ def errormap(wf, dm_map, xshift = 0., yshift = 0., **kwargs):
         
     i = complex(0.,1.)
 
-    # act_spacing = 2 * proper.prop_get_beamradius(wf) / 47
     if ("MIRROR_SURFACE" in kwargs and kwargs["MIRROR_SURFACE"]):
-        wf.wfarr *= np.exp(-2*np.pi*i/wf.lamda * dmap)  # Krist version
+        wf.wfarr *= np.exp(-4*np.pi*i/wf.lamda * dmap)  # Krist version
         # wf.wfarr *= np.exp(2*np.pi*i/wf.lamda * dmap)  # using positive values based on prop_dm
         # proper.prop_dm(wf, dm_map ,xc, yc, act_spacing) #new_sampling
         # proper.prop_add_phase(wf, dmap)
@@ -182,15 +183,19 @@ def errormap(wf, dm_map, xshift = 0., yshift = 0., **kwargs):
     else:
         raise ValueError("ERRORMAP: Unspecified map type: Use MIRROR_SURFACE, WAVEFRONT, or AMPLITUDE")
 
-    # Unwrap Phase
-    from skimage.restoration import unwrap_phase
-    amp_map = proper.prop_get_amplitude(wf)
-    phs_map = proper.prop_get_phase(wf)
-    unwrapped = unwrap_phase(phs_map, wrap_around=[False, False])
-    wf.wfarr = proper.prop_shift_center(amp_map * np.cos(unwrapped) + 1j * amp_map * np.sin(unwrapped))
-
     # check1 = proper.prop_get_sampling(wf)
     # print(f"\n\tErrormap Sampling\n"
     #       f"sampling in errormap.py is {check1 * 1e3:.4f} mm\n")
 
     return dmap
+
+
+"""
+    
+# # Unwrap Phase
+    # from skimage.restoration import unwrap_phase
+    # amp_map = proper.prop_get_amplitude(wf)
+    # phs_map = proper.prop_get_phase(wf)
+    # unwrapped = unwrap_phase(phs_map, wrap_around=[False, False])
+    # wf.wfarr = proper.prop_shift_center(amp_map * np.cos(unwrapped) + 1j * amp_map * np.sin(unwrapped))
+"""
