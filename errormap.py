@@ -121,17 +121,18 @@ def errormap(wf, dm_map, xshift = 0., yshift = 0., **kwargs):
     dmap[xrc-xc:xrc+xc, yrc-yc:yrc+yc] = dm_map
 
     # Create mask to eliminate resampling artifacts outside of beam
-    h, w = wf.wfarr.shape[:2]
-    center = (int(w / 2), int(h / 2))
-    radius = np.ceil(h * kwargs['BR'] / 2)  #
-    # Making the Circular Boolean Mask
-    Y, X = np.mgrid[:h, :w]
-    dist_from_center = np.sqrt((X - center[0]) ** 2 + (Y - center[1]) ** 2)
-    inds = dist_from_center <= radius
-    # Applying the Mask to the dm_map
-    mask = np.zeros_like(dmap)
-    mask[inds] = 1
-    dmap *= mask
+    if ("MASKING" in kwargs and kwargs["MASKING"]):
+        h, w = wf.wfarr.shape[:2]
+        center = (int(w / 2), int(h / 2))
+        radius = np.ceil(h * kwargs['BR'] / 2)  #
+        # Making the Circular Boolean Mask
+        Y, X = np.mgrid[:h, :w]
+        dist_from_center = np.sqrt((X - center[0]) ** 2 + (Y - center[1]) ** 2)
+        inds = dist_from_center <= radius
+        # Applying the Mask to the dm_map
+        mask = np.zeros_like(dmap)
+        mask[inds] = 1
+        dmap *= mask
 
     # Shift the center of dmap to 0,0
     dmap = proper.prop_shift_center(dmap)
@@ -173,10 +174,7 @@ def errormap(wf, dm_map, xshift = 0., yshift = 0., **kwargs):
 
     if ("MIRROR_SURFACE" in kwargs and kwargs["MIRROR_SURFACE"]):
         wf.wfarr *= np.exp(-4*np.pi*i/wf.lamda * dmap)  # Krist version
-        # wf.wfarr *= np.exp(2*np.pi*i/wf.lamda * dmap)  # using positive values based on prop_dm
-        # proper.prop_dm(wf, dm_map ,xc, yc, act_spacing) #new_sampling
-        # proper.prop_add_phase(wf, dmap)
-    elif "WAVEFRONT" in kwargs:    
+    elif "WAVEFRONT" in kwargs:
         wf.wfarr *= np.exp(2*np.pi*i/wf.lamda * dmap)
     elif "AMPLITUDE" in kwargs:    
         wf.wfarr *= dmap
