@@ -11,7 +11,7 @@ from matplotlib.colors import LogNorm, SymLogNorm
 
 from SubaruPupil import SubaruPupil
 from errormap import errormap
-from cdi_plots import scale_lD
+from cdi_plots import scale_lD, extract_center, get_fp_mask, add_colorbar
 
 #################################################################
 # SCExAO Optial Properties
@@ -96,16 +96,16 @@ def scexao_model(lmda, grid_size, kwargs):
         plot_flag=True
 
     dm_map = kwargs['map']
-    errormap(wfo, dm_map, SAMPLING=dm_pitch, MIRROR_SURFACE=True, BR=beam_ratio, PLOT=plot_flag)  # MICRONS=True
+    errormap(wfo, dm_map, SAMPLING=dm_pitch, MIRROR_SURFACE=True, MASKING=True,
+             BR=beam_ratio, PLOT=plot_flag)  # MICRONS=True
 
     if kwargs['verbose'] and kwargs['ix']==0:
         fig, subplot = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
         ax1, ax2 = subplot.flatten()
         fig.suptitle('SCExAO Model WFO after errormap', fontweight='bold', fontsize=14)
-        # ax.imshow(dm_map, interpolation='none')
-        ax1.imshow(np.abs(proper.prop_shift_center(wfo.wfarr))**2, interpolation='none')
+        ax1.imshow(proper.prop_get_amplitude(wfo), interpolation='none')  # np.abs(proper.prop_shift_center(wfo.wfarr))**2
         ax1.set_title('Amplitude')
-        ax2.imshow(np.angle(proper.prop_shift_center(wfo.wfarr)), interpolation='none',  # phs
+        ax2.imshow(proper.prop_get_phase(wfo), interpolation='none',  # np.angle(proper.prop_shift_center(wfo.wfarr))
                    vmin=-1*np.pi, vmax=1*np.pi, cmap='hsv')  # , cmap='hsv'
         ax2.set_title('Phase')
 
@@ -117,7 +117,7 @@ def scexao_model(lmda, grid_size, kwargs):
     proper.prop_propagate(wfo, fl_SxOAPG)  # focus at exit of DM telescope system
 
     # # Coronagraph
-    # SubaruPupil(wfo)  # focal plane mask
+    SubaruPupil(wfo)  # focal plane mask
     # if kwargs['verbose'] and kwargs['ix']==0:
     #     fig, subplot = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
     #     ax1, ax2 = subplot.flatten()
@@ -136,7 +136,7 @@ def scexao_model(lmda, grid_size, kwargs):
     proper.prop_lens(wfo, fl_SxOAPG)  # exit lens of gaussian telescope
     proper.prop_propagate(wfo, fl_SxOAPG)  # to focus
 
-    # MEC Pickoff reimager
+    # MEC Pickoff reimager.
     proper.prop_propagate(wfo, mec_parax_fl)  # to another pupil
     proper.prop_lens(wfo, mec_parax_fl)  # collimating lens, pupil size should be 8 mm
     proper.prop_propagate(wfo, mec1_fl+.0142557)  # mec1_fl  .054  mec1_fl+.0101057
@@ -154,7 +154,7 @@ def scexao_model(lmda, grid_size, kwargs):
     proper.prop_lens(wfo, mec2_fl)  # MEC lens 2 (tiny lens)
     proper.prop_propagate(wfo, mec_l2_l3)
     proper.prop_lens(wfo, mec3_fl)  # MEC lens 3
-    proper.prop_propagate(wfo, mec3_fl)  # .302 mec_l3_focus
+    proper.prop_propagate(wfo, mec3_fl, TO_PLANE=False)  # , TO_PLANE=True mec_l3_focus
 
     # #######################################
     # Focal Plane
@@ -163,29 +163,43 @@ def scexao_model(lmda, grid_size, kwargs):
     # shifts wfo from Fourier Space (origin==lower left corner) to object space (origin==center)
     # wf, samp = proper.prop_end(wfo, NoAbs=True)
     wf = proper.prop_shift_center(wfo.wfarr)
+    wf = extract_center(wf, new_size=np.array(kwargs['psf_size']))
     samp = proper.prop_get_sampling(wfo)
     smp_asec = proper.prop_get_sampling_arcsec(wfo)
 
     if kwargs['verbose'] and kwargs['ix'] == 0:
         fig, subplot = plt.subplots(nrows=1, ncols=2, figsize=(12,5))
+        fig.subplots_adjust(left=0.08, hspace=.4, wspace=0.2)
+
         ax1, ax2 = subplot.flatten()
         fig.suptitle('SCExAO Model Focal Plane', fontweight='bold', fontsize=14)
-        ax1.imshow(np.abs(wf)**2, interpolation='none',
-                  norm=LogNorm(vmin=1e-9,vmax=1e-2))  # np.abs(proper.prop_shift_center(wfo.wfarr))**2
-        ax2.imshow(np.angle(wf), interpolation='none',
-                   vmin=-np.pi, vmax=np.pi, cmap='hsv')
-        tic_spacing, tic_labels, axlabel = scale_lD(wfo)
+        tic_spacing, tic_labels, axlabel = scale_lD(wfo, newsize=kwargs['psf_size'][0])
         tic_spacing[0] = tic_spacing[0] + 1  # hack for edge effects
         tic_spacing[-1] = tic_spacing[-1] - 1  # hack for edge effects
-        plt.xticks(tic_spacing, tic_labels, fontsize=6)
-        plt.yticks(tic_spacing, tic_labels, fontsize=6)
-        plt.ylabel(axlabel, fontsize=8)
+
+        im = ax1.imshow(np.abs(wf)**2, interpolation='none',
+                  norm=LogNorm(vmin=1e-7,vmax=1e-2))  # np.abs(proper.prop_shift_center(wfo.wfarr))**2
+        ax1.set_xticks(tic_spacing)
+        ax1.set_xticklabels(tic_labels)
+        ax1.set_yticks(tic_spacing)
+        ax1.set_yticklabels(tic_labels)
+        ax1.set_ylabel(axlabel, fontsize=8)
+        add_colorbar(im)
+
+        im = ax2.imshow(np.angle(wf), interpolation='none',
+                   vmin=-np.pi, vmax=np.pi, cmap='hsv')
+        ax2.set_xticks(tic_spacing)
+        ax2.set_xticklabels(tic_labels)
+        ax2.set_yticks(tic_spacing)
+        ax2.set_yticklabels(tic_labels)
+        ax2.set_ylabel(axlabel, fontsize=8)
+        add_colorbar(im)
 
     if kwargs['verbose'] and kwargs['ix']==0:
         print(f"\nFocal Plane\n"
-              f"sampling at focal plane is {smp_asec * 1e3:.4f} mas\n"
-              f"\tfull FOV is {smp_asec * grid_size * 1e3:.2f} mas")
-        s_rad = proper.prop_get_sampling_radians(wfo)
+              f"sampling at focal plane is {samp*1e6:.1f} um ~= {smp_asec * 1e3:.4f} mas\n"
+              f"\tfull FOV is {samp * kwargs['psf_size'][0] * 1e3:.2f} x {samp * kwargs['psf_size'][1] * 1e3:.2f} mm ")
+        # s_rad = proper.prop_get_sampling_radians(wfo)
         # print(f"sampling at focal plane is {s_rad * 1e6:.6f} urad")
         print(f'final focal ratio is {proper.prop_get_fratio(wfo)}')
 

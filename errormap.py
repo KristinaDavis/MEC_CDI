@@ -6,7 +6,6 @@
 #   Original IDL version by John Krist
 #   Python translation by Navtej Saini, with Luis Marchen and Nikta Amiri
 import warnings
-
 import proper
 import numpy as np
 
@@ -94,31 +93,33 @@ def errormap(wf, dm_map, xshift = 0., yshift = 0., **kwargs):
        ("MICRONS" in kwargs and kwargs["MICRONS"]):
         raise SystemExit("ERRORMAP: Cannot specify both NM and MICRONS")
 
-    # KD edit: try to get the dm map to apply only in regions of the beam
-    n = proper.prop_get_gridsize(wf)  # should be 128x128
-    new_sampling = proper.prop_get_sampling(wf)  #kwargs["SAMPLING"]  #*dm_map.shape[0]/npix_across_beam
-    if new_sampling > (kwargs["SAMPLING"] + kwargs["SAMPLING"]*.1) or \
-        new_sampling < (kwargs["SAMPLING"] - kwargs["SAMPLING"]*.1):
-            print(f'User-defined samping is {kwargs["SAMPLING"]:.6f} but proper wavefront has sampling of '
-                  f'{new_sampling:.6f}')
-            warnings.warn(f'User-defined beam ratio does not produce aperture sampling consistent with SCExAO actuator '
-                          f'spacing. May produce invalid results')
-
     if not "XC_MAP" in kwargs:
         s = dm_map.shape
-        xc = s[0] // 2
+        xc = s[0] // 2  # center of map read-in (xc should be 25 for SCExAO DM maps)
         yc = s[1] // 2
     else:
         xc = kwargs["XC_MAP"]
         yc = kwargs["YC_MAP"]
 
+    # KD edit: try to get the dm map to apply only in regions of the beam
+    n = proper.prop_get_gridsize(wf)  #
+    new_sampling = proper.prop_get_sampling(wf)  #kwargs["SAMPLING"]  #*dm_map.shape[0]/npix_across_beam
+    if new_sampling > (kwargs["SAMPLING"] + kwargs["SAMPLING"]*.1) or \
+        new_sampling < (kwargs["SAMPLING"] - kwargs["SAMPLING"]*.1):
+            dm_map = proper.prop_resamplemap(wf, dm_map, kwargs["SAMPLING"], 0, 0)
+            dm_map = dm_map[n//2:n//2+xc*4, n//2:n//2+xc*4]
+            # print(f'User-defined samping is {kwargs["SAMPLING"]:.6f} but proper wavefront has sampling of '
+            #       f'{new_sampling:.6f}')
+            warnings.warn(f'User-defined beam ratio does not produce aperture sampling consistent with SCExAO actuator '
+                          f'spacing. Resampling Map')
+
     # resample dm_map to size of beam in the simulation
     # grid = proper.prop_resamplemap(wf, dm_map, new_sampling, xc, yc, xshift, yshift)
-    dmap=np.zeros((wf.wfarr.shape[0],wf.wfarr.shape[1]))
+    dmap = np.zeros((wf.wfarr.shape[0],wf.wfarr.shape[1]))
     r = dmap.shape
     xrc = r[0] // 2
     yrc = r[1] // 2
-    dmap[xrc-xc:xrc+xc, yrc-yc:yrc+yc] = dm_map
+    dmap[xrc-xc*2:xrc+xc*2, yrc-yc*2:yrc+yc*2] = dm_map
 
     # Create mask to eliminate resampling artifacts outside of beam
     if ("MASKING" in kwargs and kwargs["MASKING"]):

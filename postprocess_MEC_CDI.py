@@ -26,7 +26,9 @@ import proper
 
 from mec_cdi import Slapper
 from read_photons import open_MEC_tseries, datetime_to_unix
-from cdi_plots import plot_probe_response_cycle, plot_quick_coord_check, plot_probe_response, plot_probe_cycle
+from cdi_plots import plot_probe_response_cycle, plot_quick_coord_check, \
+    plot_probe_response, plot_probe_cycle, get_fp_mask
+from matplotlib.collections import LineCollection
 
 
 ##
@@ -78,7 +80,8 @@ def cdi_postprocess(fp_seq, cdi_zip, map_dir=None, plot=False, debug=False):
     intensity_counter(mec_probed, mec_nulls)
 
     # Define arrays for sorting probe vs null steps
-    sim_grid = 128  # phase propagation simulation grid size nxn
+    sim_grid = 256  # phase propagation simulation grid size nxn
+    extracted = [nx,ny]
     probe_tstamps = np.zeros((len(cmds_probe_only)))
     probe_maps = np.zeros((len(cmds_probe_only), dm_act, dm_act))
     null_tstamps = np.zeros((len(cmds_nulls_only)))
@@ -86,10 +89,14 @@ def cdi_postprocess(fp_seq, cdi_zip, map_dir=None, plot=False, debug=False):
 
     ## Loading or simulating DM voltage maps
     lst = time.time()
+    # # Complex Map
+    # fp_mask, edges = get_fp_mask(cdi_zip)
+    # cl = LineCollection(edges, colors='r')
+
     if map_dir:
         # Load DM Telemetry Data => dm voltage maps saved by scexaortc (referred to as map)
-        cpx_dm_sim = np.zeros((len(cmds_probe_only), sim_grid, sim_grid), dtype=complex)
-        cpx_null_sim = np.zeros((len(cmds_nulls_only), sim_grid, sim_grid), dtype=complex)
+        # cpx_dm_sim = np.zeros((len(cmds_probe_only), nx, ny), dtype=complex)
+        # cpx_null_sim = np.zeros((len(cmds_nulls_only), nx, ny), dtype=complex)
         cpx_dm = np.zeros((len(cmds_probe_only), nx, ny), dtype=complex)
         cpx_null = np.zeros((len(cmds_nulls_only), nx, ny), dtype=complex)
 
@@ -106,26 +113,28 @@ def cdi_postprocess(fp_seq, cdi_zip, map_dir=None, plot=False, debug=False):
         # Saving DM map that matches closest prior probe command
         flat = get_standard_flat(debug=False)
         # Probes
-        for ix in range(2):  # len(cmds_probe_only)
+        for ix in range(len(cmds_probe_only)):  # len(cmds_probe_only)
             map_ts, dm_map, ixsync = sync_tstep(ix, cmds_probe_only, txts, tt)
             probe_tstamps[ix] = map_ts[ixsync]
             probe_maps[ix] = dm_map[ixsync, :, :]
             # cpx_dm[ix] = basic_fft(dm_map[ixsync, :, :], nx, ny)
-            cpx_dm_sim[ix], smp = proper.prop_run('scexao_model', .9, sim_grid,  # for some reason 0.9 gives 900 nm
-                                             PASSVALUE={'map':probe_maps[ix]*1e-6,'verbose':debug, 'ix':ix}, QUIET=True)
+            cpx_dm[ix], smp = proper.prop_run('scexao_model', .9, sim_grid,  # for some reason 0.9 gives 900 nm
+                                             PASSVALUE={'map':probe_maps[ix]*1e-6, 'psf_size':extracted,
+                                                        'verbose':debug, 'ix':ix}, QUIET=True)
         # Nulls
-        for ix in range(2):  # len(cmds_nulls_only)
+        for ix in range(len(cmds_nulls_only)):  # len(cmds_nulls_only)
             map_ts, dm_map, ixsync = sync_tstep(ix, cmds_nulls_only, txts, tt)
             null_tstamps[ix] = map_ts[ixsync]
             null_maps[ix] = dm_map[ixsync, :, :]-flat
             # cpx_null[ix] = basic_fft(null_maps[ix], nx, ny)
-            cpx_null_sim[ix], smp = proper.prop_run('scexao_model', .9, sim_grid,  # for some reason 0.9 gives 900 nm
-                                          PASSVALUE={'map': null_maps[ix]*1e-7, 'verbose':False, 'ix':ix}, QUIET=True)
+            cpx_null[ix], smp = proper.prop_run('scexao_model', .9, sim_grid,  # for some reason 0.9 gives 900 nm
+                                          PASSVALUE={'map': null_maps[ix]*1e-6, 'psf_size':extracted,
+                                                     'verbose':False, 'ix':ix}, QUIET=True)
         # # Rescaling to match MEC focal plane dimensions
-        for ix in range(cpx_dm_sim.shape[0]):
-            cpx_dm[ix]   = resample_cpx(cpx_dm_sim[ix],   nx, ny)
-        for ix in range(cpx_null_sim.shape[0]):
-            cpx_null[ix] = resample_cpx(cpx_null_sim[ix], nx, ny)
+        # for ix in range(cpx_dm_sim.shape[0]):
+        #     cpx_dm[ix]   = resample_cpx(cpx_dm_sim[ix],   nx, ny)
+        # for ix in range(cpx_null_sim.shape[0]):
+        #     cpx_null[ix] = resample_cpx(cpx_null_sim[ix], nx, ny)
 
         elt = time.time()
         print(
@@ -133,12 +142,12 @@ def cdi_postprocess(fp_seq, cdi_zip, map_dir=None, plot=False, debug=False):
 
     else:
         # Just use the DM probe pattern as the voltage map
-        cpx_all_sim = np.zeros((len(cdi_zip.probe.DM_cmd_cycle), sim_grid, sim_grid), dtype=complex)
+        cpx_all_sim = np.zeros((len(cdi_zip.probe.DM_cmd_cycle), extracted[0], extracted[1]), dtype=complex)
         cpx_all_1 = np.zeros((n_pairs*2+n_nulls, nx, ny), dtype=complex)
         cpx_all = np.zeros((len(reg_msk), nx, ny), dtype=complex)
 
-        flat = 900e-9/1e6 * get_standard_flat(debug=False)  # standard flat
-        # flat = np.zeros((50,50),dtype=float)  # empty
+        # flat = get_standard_flat(debug=False)  # standard flat  900e-9/1e6 *
+        flat = np.zeros((50,50),dtype=float)  # empty
         # cos function
         # dmx, dmy = np.meshgrid(
         #     np.linspace(-0.5, 0.5, 50),
@@ -159,7 +168,8 @@ def cdi_postprocess(fp_seq, cdi_zip, map_dir=None, plot=False, debug=False):
             map = 1e-6 * (flat + cdi_zip.probe.DM_cmd_cycle[ix])   #TODO replace flat + cmd
             # cpx_all_sim[ix] = basic_fft(map, 128, 128)
             cpx_all_sim[ix], smp = proper.prop_run('scexao_model', .9, sim_grid,
-                                              PASSVALUE={'map': map, 'verbose': debug, 'ix':ix}, QUIET=True)
+                                              PASSVALUE={'map': map, 'psf_size':extracted,
+                                                         'verbose': debug, 'ix':ix}, QUIET=True)
 
         # Copying FP Null image for n_nulls steps
         ix=0
@@ -168,10 +178,10 @@ def cdi_postprocess(fp_seq, cdi_zip, map_dir=None, plot=False, debug=False):
             ix+=1
 
         # repeat cycle of n_probes+n_nulls for n_cycles
-        for ix in range(len(cpx_all_sim)):
-            cpx_all_1[ix] = resample_cpx(cpx_all_sim[ix], nx, ny)
+        # for ix in range(len(cpx_all_sim)):
+        #     cpx_all_1[ix] = resample_cpx(cpx_all_sim[ix], nx, ny)
         # cycle through the probe cycle for length of observation
-        cpx_all = np.tile(cpx_all_1, (cdi_zip.ts.n_cycles, 1, 1))
+        cpx_all = np.tile(cpx_all_sim, (cdi_zip.ts.n_cycles, 1, 1))
 
         # Probes
         cpx_dm = cpx_all[reg_msk]
@@ -189,15 +199,15 @@ def cdi_postprocess(fp_seq, cdi_zip, map_dir=None, plot=False, debug=False):
     if debug:
         # Plot DM Map Probe Sequence
         fig, subplot = plt.subplots(2, cdi_zip.ts.n_probes//2, figsize=(14, 8))
-        fig.suptitle(f'DM Telemetry Data, Probe Commands - flat: '
+        fig.suptitle(f'DM Telemetry Data, Probe Commands: '
                      f'target = {target_name}\n'
                      f' N probes={cdi_zip.ts.n_probes}, '
                      f'N null steps={int(cdi_zip.ts.null_time / cdi_zip.ts.phase_integration_time)}, '
                      f'integration time={cdi_zip.ts.phase_integration_time} sec', fontweight='bold', fontsize=14)
 
         for ax, ix in zip(subplot.flatten(), range(len(cdi_zip.probe.DM_cmd_cycle))):
-            im = ax.imshow(probe_maps[ix]- flat,   #
-                           vmax=np.max(probe_maps[0])*.8, vmin=-np.max(probe_maps[0])*.8 # np.min(probe_maps[0])
+            im = ax.imshow(probe_maps[ix],   #
+                           vmax=np.max(probe_maps[0]), vmin=-np.max(probe_maps[0]) # np.min(probe_maps[0])
                            )
             ax.set_title(f"t={probe_tstamps[ix] - (cdi_zip.ts.cmd_tstamps[0]).astype('float')/1e9:.2f}")
 
@@ -208,24 +218,30 @@ def cdi_postprocess(fp_seq, cdi_zip, map_dir=None, plot=False, debug=False):
 
         # Null DM Map
         fig, subplot = plt.subplots(2, len(cmds_nulls_only) // 2, figsize=(14, 8))
-        fig.suptitle(f'DM Telemetry Data, Non-probed Timesteps (nulls) - flat: '
+        fig.suptitle(f'DM Telemetry Data, Non-probed Timesteps (nulls): '
                      f'target = {target_name}\n'
                      f' N probes={n_probes}, '
                      f'N null steps={int(n_nulls)}, '
                      f'integration time={cdi_zip.ts.phase_integration_time} sec', fontweight='bold', fontsize=14)
 
         for ax, ix in zip(subplot.flatten(), range(len(cmds_nulls_only))):
-            im = ax.imshow(null_maps[ix]-flat,  #
-                           vmax=np.max(null_maps[0])*.8, vmin=-np.max(null_maps[0])*.8  # 0
+            im = ax.imshow(null_maps[ix],  #
+                           vmax=np.max(null_maps[0]), vmin=-np.max(null_maps[0])  # 0
                            )
             ax.set_title(f"t={null_tstamps[ix] - (cdi_zip.ts.cmd_tstamps[0]).astype('float') / 1e9:.2f}")
-
         cax = fig.add_axes([0.91, 0.2, 0.02, 0.6])  # Add axes for colorbar @ position [left,bottom,width,height]
         cb = fig.colorbar(im, orientation='vertical', cax=cax)  #
         cb.set_label(f'DM actuator height (' + r'$\mu$' + 'm, uncalibrated)')
         plt.savefig(f'{plt_path}/{target_name}_dmMap_nullseq.png')
 
+    # Re-center array to match mec images
+    cpx_dm   = np.roll(cpx_dm , (-3, 20),(1,2))
+    cpx_null = np.roll(cpx_null,(-3, 20),(1,2))
+    if plot:
         # Complex Map
+        # fp_mask, edges = get_fp_mask(cdi_zip)
+        # cl = LineCollection(edges, colors='r')
+
         fig, subplot = plt.subplots(2, n_probes // 2, figsize=(14, 8))
         fig.suptitle(f'Propogated Intensity through SCExAO Model (probes): '
                      f'target = {target_name}\n'
@@ -235,8 +251,9 @@ def cdi_postprocess(fp_seq, cdi_zip, map_dir=None, plot=False, debug=False):
 
         for ax, ix in zip(subplot.flatten(), range(n_probes)):
             im = ax.imshow(np.abs(cpx_dm[ix])**2, interpolation='none',
-                  norm=LogNorm(vmin=1e-9,vmax=1e-2)
+                  norm=LogNorm(vmin=1e-5,vmax=1e-2)
                            )
+            # ax.add_collection(cl)
             ax.set_title(f"t={probe_tstamps[ix] - (cdi_zip.ts.cmd_tstamps[0]).astype('float')/1e9:.2f}")
 
         cax = fig.add_axes([0.91, 0.2, 0.02, 0.6])  # Add axes for colorbar @ position [left,bottom,width,height]
@@ -244,7 +261,7 @@ def cdi_postprocess(fp_seq, cdi_zip, map_dir=None, plot=False, debug=False):
         cb.set_label(f'Intensity')
         plt.savefig(f'{plt_path}/{target_name}_simulated_focalplane.png')
 
-    plt.show()
+    # plt.show()
     ######################
     # CDI Algorithm
     # ####################
@@ -255,68 +272,70 @@ def cdi_postprocess(fp_seq, cdi_zip, map_dir=None, plot=False, debug=False):
     b = np.zeros((n_pairs, 1))
 
     # Masking
-    # mask2D, imsk, jmsk, irng, jrng, imx, imn, jmx, jmn = get_fp_mask(cdi_zip, thresh=1e-3)  # , shft=[25,10]
+    mask2D, imsk, jmsk, irng, jrng, imx, imn, jmx, jmn = get_fp_mask(cdi_zip, thresh=1e-3, shft=[-3, 20])  # , shft=[25,10]
 
-    # if debug:
-    #     fig, ax = plt.subplots(1,1)
-    #     fig.suptitle(f'Masked FP in CDI probe Region', fontweight='bold', fontsize=14)
-    #     im = ax.imshow((mec_probed[:,:,0]*mask2D).T)
-    #
-    #     cax = fig.add_axes([0.85, 0.2, 0.02, 0.6])  # Add axes for colorbar @ position [left,bottom,width,height]
-    #     cb = fig.colorbar(im, orientation='vertical', cax=cax)  #
-    #     cb.set_label(f'Counts')
+    if debug:
+        fig, ax = plt.subplots(1,1)
+        fig.suptitle(f'Masked FP in CDI probe Region', fontweight='bold', fontsize=14)
+        im = ax.imshow((mec_probed[0,:,:]*mask2D).T)
 
-    # cdit = time.time()
-    # for cy in range(1):  # range(cdi_zip.ts.n_cycles)
-    #     cycle = cy*n_nulls
-    #     for i in range(80,85):  #  range(80,85)  irng range(140)
-    #         for j in range(80,85):  #  range(80,85)  jrng range(140)
-    #             for xn in range(n_nulls):
-    #                 for ip in range(n_pairs):
-    #                     # Differance Images (delta)
-    #                     # (I_ip+ - I_ip-)/2
-    #                     delta[ip,:,:] = (mec_probed[:, :,cycle+ip] - mec_probed[:, :, cycle + ip + n_pairs]) / 2
-    #                         #TODO does this get overwritten each cycle?
-    #
-    #                     # Amplitude DeltaP
-    #                     Ip = mec_probed[i, j, cycle + ip]
-    #                     Im = mec_probed[i, j, cycle + ip + n_pairs]
-    #                     Io = mec_nulls[i, j, cycle + xn] #TODO fix this to run over all nulls in series
-    #                     abs = (Ip + Im) / 2 - Io
-    #                     if abs < 0:
-    #                         abs = 0
-    #                     absDeltaP = np.sqrt(abs)
-    #                     # absDeltaP = np.sqrt(np.abs((Ip + Im) / 2 - Io))
-    #
-    #                     # Phase DeltaP
-    #                     # The phase of the change in the focal plane of the probe applied to the DM
-    #                     # First subtract Eo vector from each probe phase to make new field vectors dEa, dEb,
-    #                     # then take the angle between the two
-    #                     dEp = cpx_dm[cycle + ip, i, j] - cpx_null[cycle + xn, i, j]
-    #                     dEm = cpx_dm[cycle+ip+n_pairs, i, j] - cpx_null[cycle + xn, i, j]
-    #                     # dEp = fp_seq[i, j, ip] - fp_seq[i, j, cdi_zip.ts.n_probes + xn]
-    #                     # dEm = fp_seq[i, j, ip + n_pairs] - fp_seq[i, j, cdi_zip.ts.n_probes + xn]
-    #                     phsDeltaP = np.arctan2(dEp.imag - dEm.imag, dEp.real - dEm.real)
-    #
-    #                     # print(f'dEp={dEp}, dEm={dEm}, xn={xn}\n'
-    #                     #       f'abs={absDeltaP}, phs={phsDeltaP}')
-    #
-    #                     cpxDeltaP = absDeltaP * np.exp(1j * phsDeltaP)
-    #                     H[ip, :] = [-cpxDeltaP.imag, cpxDeltaP.real]  # [n_pairs, 2]
-    #                     b[ip] = delta[ip, i, j]  # [n_pairs, 1]
-    #
-    #             a = 2 * H
-    #             Exy = sl.lstsq(a, b)[0]  # returns tuple, not array
-    #             E_pupil[xn, i, j] = Exy[0] + (1j * Exy[1])
-    #
-    # et = time.time()
-    # print(f'CDI post-processing for {n_nulls*cdi_zip.ts.n_cycles} null-images'
-    #       f' finished in {et-cdit:.1f} sec == {(et-cdit)/60:.2f} min\n')
-    #
-    # # I_processed
-    # I_processed = np.zeros((len(E_pupil), nx, ny))
-    # for ix in range(len(E_pupil)):
-    #     I_processed[ix] = np.floor(np.abs(E_pupil[ix]) ** 2 )
+        cax = fig.add_axes([0.85, 0.2, 0.02, 0.6])  # Add axes for colorbar @ position [left,bottom,width,height]
+        cb = fig.colorbar(im, orientation='vertical', cax=cax)  #
+        cb.set_label(f'Counts')
+
+    cdit = time.time()
+    for cy in range(1):  # range(cdi_zip.ts.n_cycles)
+        cycle = cy*n_nulls
+        for i in range(140):  #  range(80,85)  irng range(140)
+            for j in range(140):  #  range(80,85)  jrng range(140)
+                for xn in range(n_nulls):
+                    for ip in range(n_pairs):
+                        # print(f'writing to [{cycle + xn}, i={i}, j={j}], cycle={cycle}, cy={cy}, xn={xn}')
+                        # Differance Images (delta)
+                        # (I_ip+ - I_ip-)/2
+                        delta[ip,:,:] = (mec_probed[cycle+ip, :, :] - mec_probed[cycle + ip + n_pairs, :, :]) / 2
+                            #TODO does this get overwritten each cycle?
+
+                        # Amplitude DeltaP
+                        Ip = mec_probed[cycle + ip, i, j]
+                        Im = mec_probed[cycle + ip + n_pairs, i, j]
+                        Io = mec_nulls[cycle + xn, i, j] #TODO fix this to run over all nulls in series
+                        abs = (Ip + Im) / 2 - Io
+                        if abs < 0:
+                            abs = 0
+                        absDeltaP = np.sqrt(abs)
+                        # absDeltaP = np.sqrt(np.abs((Ip + Im) / 2 - Io))
+
+                        # Phase DeltaP
+                        # The phase of the change in the focal plane of the probe applied to the DM
+                        # First subtract Eo vector from each probe phase to make new field vectors dEa, dEb,
+                        # then take the angle between the two
+                        dEp = cpx_dm[cycle + ip, i, j] - cpx_null[cycle + xn, i, j]
+                        dEm = cpx_dm[cycle+ip+n_pairs, i, j] - cpx_null[cycle + xn, i, j]
+                        # dEp = fp_seq[i, j, ip] - fp_seq[i, j, cdi_zip.ts.n_probes + xn]
+                        # dEm = fp_seq[i, j, ip + n_pairs] - fp_seq[i, j, cdi_zip.ts.n_probes + xn]
+                        phsDeltaP = np.arctan2(dEp.imag - dEm.imag, dEp.real - dEm.real)
+
+                        # print(f'dEp={dEp}, dEm={dEm}, xn={xn}\n'
+                        #       f'abs={absDeltaP}, phs={phsDeltaP}')
+
+                        cpxDeltaP = absDeltaP * np.exp(1j * phsDeltaP)
+                        H[ip, :] = [-cpxDeltaP.imag, cpxDeltaP.real]  # [n_pairs, 2]
+                        b[ip] = delta[ip, i, j]  # [n_pairs, 1]
+
+                    a = 2 * H
+                    Exy = sl.lstsq(a, b)[0]  # returns tuple, not array
+                    # print(f'writing to [{cycle + xn}, i={i}, j={j}], cycle={cycle}, cy={cy}, xn={xn}')
+                    E_pupil[cycle + xn, i, j] = Exy[0] + (1j * Exy[1])
+
+    et = time.time()
+    print(f'CDI post-processing for {n_nulls*cdi_zip.ts.n_cycles} null-images'
+          f' finished in {et-cdit:.1f} sec == {(et-cdit)/60:.2f} min\n')
+
+    # I_processed
+    I_processed = np.zeros((len(E_pupil), nx, ny))
+    for ix in range(len(E_pupil)):
+        I_processed[ix] = np.floor(np.abs(E_pupil[ix]) ** 2 )
 
     ##
     if plot:
@@ -341,11 +360,11 @@ def cdi_postprocess(fp_seq, cdi_zip, map_dir=None, plot=False, debug=False):
 
         ##############################
         # Focal Plane E-field Estimate
-        fig, subplt = plt.subplots(1, 3, figsize=(14, 5))
+        fig, subplt = plt.subplots(2, 4, figsize=(14, 7))
         fig.subplots_adjust(wspace=0.3, right=0.85, left=0.05)
 
         fig.suptitle('Estimated Focal-Plane E-field', fontweight='bold', fontsize=14)
-        for ax, ix in zip(subplt, range(3)):
+        for ax, ix in zip(subplt.flatten(), range(8)):
             im = ax.imshow(I_processed[ix].T, interpolation='none',  # ,
                            vmin=-1, vmax=200)  # ,
                            # norm=LogNorm())
@@ -353,20 +372,15 @@ def cdi_postprocess(fp_seq, cdi_zip, map_dir=None, plot=False, debug=False):
         cax = fig.add_axes([0.9, 0.2, 0.03, 0.6])  # Add axes for colorbar @ position [left,bottom,width,height]
         cb = fig.colorbar(im, orientation='vertical', cax=cax)  #
         cb.set_label('Intensity')
-        # # Focal Plane E-field Estimate
-        # fig, subplt = plt.subplots(1, 1, figsize=(6, 5))
-        # fig.subplots_adjust(wspace=0.5, right=0.85)
-        # fig.suptitle('Estimated Focal-Plane E-field')
-        # im = subplt.imshow(np.abs(E_pupil[ix].T)**2 * 1e-6, interpolation='none',
-        #                norm=LogNorm())
-        # #####################
+
+        ######################
         # Subtracted E-field
         fig, subplot = plt.subplots(1, 3, figsize=(14, 5))
         fig.subplots_adjust(wspace=0.1, right=0.85, left=0.05)
         fig.suptitle(f' Subtracted E-field', fontweight='bold', fontsize=14)
 
         for ax, ix in zip(subplot, range(3)):
-            imsx = ax.imshow(mec_nulls[:,:,ix].T-I_processed[ix].T, interpolation='none',
+            imsx = ax.imshow(mec_nulls[ix,:,:].T-I_processed[ix].T, interpolation='none',
                              vmin=-1, vmax=2000)
                            # norm=LogNorm())
             ax.set_title(f'Estimation timestep {ix}')
@@ -381,17 +395,17 @@ def cdi_postprocess(fp_seq, cdi_zip, map_dir=None, plot=False, debug=False):
         fig.suptitle(f'{target_name} Subtracted E-field', fontweight='bold', fontsize=14)
         ax1, ax2, ax3, ax4, ax5, ax6 = subplot.flatten()
 
-        ax1.imshow(fp_seq[:, :, 0 + n_nulls].T, interpolation='none', vmin=-1, vmax=2000)
+        ax1.imshow(fp_seq[0 + n_nulls].T, interpolation='none', vmin=-1, vmax=2000)
         ax1.set_title(f'Null Step 1')
-        ax2.imshow(fp_seq[:, :, 1 + n_nulls].T, interpolation='none', vmin=-1, vmax=2000)
+        ax2.imshow(fp_seq[1 + n_nulls].T, interpolation='none', vmin=-1, vmax=2000)
         ax2.set_title(f'Null Step 2')
-        ax3.imshow(fp_seq[:, :, 2 + n_nulls].T, interpolation='none', vmin=-1, vmax=2000)
+        ax3.imshow(fp_seq[2 + n_nulls].T, interpolation='none', vmin=-1, vmax=2000)
         ax3.set_title(f'Null Step 3')
-        ax4.imshow(fp_seq[:,:,0 + n_nulls].T-I_processed[0].T, interpolation='none', vmin=-1, vmax=2000)
+        ax4.imshow(fp_seq[0 + n_nulls].T-I_processed[0].T, interpolation='none', vmin=-1, vmax=2000)
         ax4.set_title(f'CDI Subtracted Null 1')
-        ax5.imshow(fp_seq[:, :, 1 + n_nulls].T - I_processed[0].T, interpolation='none', vmin=-1, vmax=2000)
+        ax5.imshow(fp_seq[1 + n_nulls].T - I_processed[0].T, interpolation='none', vmin=-1, vmax=2000)
         ax5.set_title(f'CDI Subtracted Null 2')
-        ax6.imshow(fp_seq[:, :, 2 + n_nulls].T - I_processed[0].T, interpolation='none', vmin=-1, vmax=2000)
+        ax6.imshow(fp_seq[ 2 + n_nulls].T - I_processed[0].T, interpolation='none', vmin=-1, vmax=2000)
         ax6.set_title(f'CDI Subtracted Null 3')
 
         # plt.show()
@@ -408,9 +422,9 @@ def cdi_postprocess(fp_seq, cdi_zip, map_dir=None, plot=False, debug=False):
         cnt = np.tile(range(n_pairs), 2)
         xn = 1
         for ax, ix in zip(subplot.flatten(), range(2 * n_pairs)):
-            Ip = fp_seq[:, :, cnt[ix]]
-            Im = fp_seq[:, :, cnt[ix] + n_pairs]
-            Io = fp_seq[:, :, cdi_zip.ts.n_probes + (ix // n_pairs + 0)]
+            Ip = fp_seq[cnt[ix] ]
+            Im = fp_seq[cnt[ix] + n_pairs]
+            Io = fp_seq[cdi_zip.ts.n_probes + (ix // n_pairs + 0)]
 
             absDP = (Ip + Im) / 2 - Io
             # if absDP.any() < 0:
@@ -431,11 +445,11 @@ def cdi_postprocess(fp_seq, cdi_zip, map_dir=None, plot=False, debug=False):
         cb.set_label('Intensity')
 
     ## Probe Response (from mec_cdi.py)
-    save_set = {'save':False, 'plt': plt_path, 'target': target_name, 'h5': run_data['h5_unix'].tolist()}
-    plot_probe_response(cdi_zip, 0, save_set)
-    plot_probe_cycle(cdi_zip, save_set)
-    # plot_probe_response_cycle(cdi_zip)
-    plot_quick_coord_check(cdi_zip, 0, save_set)
+    # save_set = {'save':False, 'plt': plt_path, 'target': target_name, 'h5': run_data['h5_unix'].tolist()}
+    # plot_probe_response(cdi_zip, 0, save_set)
+    # plot_probe_cycle(cdi_zip, save_set)
+    # # plot_probe_response_cycle(cdi_zip)
+    # plot_quick_coord_check(cdi_zip, 0, save_set)
 
 ##################################################
 # Functions
@@ -572,15 +586,14 @@ def get_fp_mask(cdi_zip, thresh=1e-7, shft=[None,None]):
     """
     fp_probe = basic_fft(cdi_zip.probe.DM_cmd_cycle[0])
     fp_intensity = np.abs(fp_probe)**2
-    fp_mask = (fp_intensity > thresh)
-    (imsk, jmsk) = (fp_intensity > thresh).nonzero()
 
     if shft[0] is not None:
-        fp_mask = np.roll(fp_mask, shft[0], axis=0)
-        imsk = np.roll(imsk, shft[0], axis=0)
+        fp_mask = np.roll(fp_intensity, shft[0], axis=0)
     if shft[1] is not None:
-        fp_mask = np.roll(fp_mask,shft[1], axis=1)
-        jmsk = np.roll(jmsk,shft[1], axis=1)
+        fp_mask = np.roll(fp_intensity,shft[1], axis=1)
+
+    fp_mask = (fp_intensity > thresh)
+    (imsk, jmsk) = (fp_intensity > thresh).nonzero()
 
     irng = range(min(imsk), max(imsk), 1)
     jrng = range(min(jmsk), max(jmsk), 1)
@@ -630,8 +643,8 @@ if __name__ == '__main__':
     run_data = np.load(datf, allow_pickle=True)
     fp_seq = run_data['tcube_regcycle']  #.tolist()
     cdi_zip = open_MEC_tseries('/darkdata/kkdavis/mec/Sept2021sci/pkl/CDI_tseries_9-10-2021_T11:51.pkl')
-    # map_dir = None
-    map_dir = '/darkdata/kkdavis/mec/Sept2021sci/dm_data/dm00disp'
+    map_dir = None
+    # map_dir = '/darkdata/kkdavis/mec/Sept2021sci/dm_data/dm00disp'
     h5_name = run_data['h5_unix'].tolist()
     plt_path = os.path.join(run_data['base_pth'].tolist(),'plots')
 
@@ -640,6 +653,6 @@ if __name__ == '__main__':
         h5_name = os.path.splitext(r2)
         h5_name = h5_name[0]
 
-    grail = cdi_postprocess(fp_seq, cdi_zip, map_dir=map_dir,  plot=False, debug=True)
+    grail = cdi_postprocess(fp_seq, cdi_zip, map_dir=map_dir,  plot=True, debug=True)
     plt.show()
     dumm=1

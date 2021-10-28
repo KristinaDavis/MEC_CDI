@@ -304,37 +304,37 @@ def add_colorbar(im, aspect=20, pad_fraction=0.5, **kwargs):
     return im.axes.figure.colorbar(im, cax=cax, **kwargs)
 
 
-def scale_lD(samp, fn, cw = 1e-6, D=7.89 ):
-    """
-    scales the focal plane into lambda/D units. Can use proper.prop_get_fratio to get the f_ratio that proper calculates
-    at the focal plane. First convert the sampling in m/pix to rad/pix, then scale by the center wavelength lambda/D
-    [rad].
-
-    :param samp: sampling of the wavefront in [m/pix]
-    :param fn: f# (focal ratio) of the beam in the focal plane [unitless], default
-    :param cw: center wavelength in [m], default 1 micron
-    :param D: telescope entrance diameter in [m], default 7.89m=Subaru IR effective diameter
-    :return:
-    """
-    if samp.shape[0] == 1:
-        pass
-    else:
-        samp = samp[cent]  # sampling at the center wavelength
-
-    # Convert to Angular Sampling Units via platescale
-    fl = fn * entrance_d
-    rad_scale = samp / fl
-
-    res = cw / D
-
-    tic_spacing = np.linspace(0, sp.maskd_size, 5)  # 5 (number of ticks) is set by hand, arbitrarily chosen
-    tic_labels = np.round(np.linspace(-rad_scale * sp.maskd_size / 2 , rad_scale * sp.maskd_size / 2 , 5)/res)  # nsteps must be same as tic_spacing
-    tic_spacing[0] = tic_spacing[0] + 1  # hack for edge effects
-    tic_spacing[-1] = tic_spacing[-1] - 1  # hack for edge effects
-
-    axlabel = (r'$\lambda$' + f'/D')
-
-    return tic_spacing, tic_labels, axlabel
+# def scale_lD(samp, fn, cw = 1e-6, D=7.89 ):
+#     """
+#     scales the focal plane into lambda/D units. Can use proper.prop_get_fratio to get the f_ratio that proper calculates
+#     at the focal plane. First convert the sampling in m/pix to rad/pix, then scale by the center wavelength lambda/D
+#     [rad].
+#
+#     :param samp: sampling of the wavefront in [m/pix]
+#     :param fn: f# (focal ratio) of the beam in the focal plane [unitless], default
+#     :param cw: center wavelength in [m], default 1 micron
+#     :param D: telescope entrance diameter in [m], default 7.89m=Subaru IR effective diameter
+#     :return:
+#     """
+#     if samp.shape[0] == 1:
+#         pass
+#     else:
+#         samp = samp[cent]  # sampling at the center wavelength
+#
+#     # Convert to Angular Sampling Units via platescale
+#     fl = fn * entrance_d
+#     rad_scale = samp / fl
+#
+#     res = cw / D
+#
+#     tic_spacing = np.linspace(0, sp.maskd_size, 5)  # 5 (number of ticks) is set by hand, arbitrarily chosen
+#     tic_labels = np.round(np.linspace(-rad_scale * sp.maskd_size / 2 , rad_scale * sp.maskd_size / 2 , 5)/res)  # nsteps must be same as tic_spacing
+#     tic_spacing[0] = tic_spacing[0] + 1  # hack for edge effects
+#     tic_spacing[-1] = tic_spacing[-1] - 1  # hack for edge effects
+#
+#     axlabel = (r'$\lambda$' + f'/D')
+#
+#     return tic_spacing, tic_labels, axlabel
 
 
 def get_fp_mask(cdi, thresh=1e-7):
@@ -348,12 +348,13 @@ def get_fp_mask(cdi, thresh=1e-7):
              irng, jrng:
 
     """
+    print('I made it in')
     nx = 146
     ny = 140
-    dm_act = cdi.nact
+    dm_act = cdi.probe.DM_cmd_cycle.shape[-1]
 
     fftA = (1 / np.sqrt(2 * np.pi) *
-            np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(cdi.DM_probe_series[0]))))
+            np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(cdi.probe.DM_cmd_cycle[0]))))
 
     Ar = interpolate.interp2d(range(dm_act), range(dm_act), fftA.real, kind='cubic')
     Ai = interpolate.interp2d(range(dm_act), range(dm_act), fftA.imag, kind='cubic')
@@ -373,7 +374,7 @@ def get_fp_mask(cdi, thresh=1e-7):
     edges = edges - 0.5  # convert indices to coordinates; TODO adjust according to image extent
     outlines = close_loop_edges(edges=edges)
 
-    return fp_mask, outlines, imsk, jmsk, irng, jrng
+    return [fp_mask, outlines ]#, imsk, jmsk, irng, jrng
 
 
 def get_all_edges(bool_img):
@@ -441,7 +442,7 @@ def close_loop_edges(edges):
     return loop_list
 
 
-def scale_lD(wfo):
+def scale_lD(wfo, newsize=None):
     """
     scales the focal plane into lambda/D units. First convert the sampling in m/pix to rad/pix, then scale by the
      center wavelength lambda/D [rad].
@@ -452,9 +453,11 @@ def scale_lD(wfo):
     samp = proper.prop_get_sampling(wfo)
     fn = proper.prop_get_fratio(wfo)
     bd = wfo.diam
-    dumm=1
     lmda = wfo.lamda
-    size = wfo.ngrid
+    if newsize is None:
+        size = wfo.ngrid
+    else:
+        size = newsize
 
     # Convert to Angular Sampling Units via platescale
     fl = fn * bd
@@ -470,3 +473,23 @@ def scale_lD(wfo):
     axlabel = (r'$\lambda$' + f'/D')
 
     return tic_spacing, tic_labels, axlabel
+
+
+def extract_center(wf, new_size=None):
+    """
+    extracts [new_size, new_size] from [sp.grid_size, sp.grid_size] data
+    fp~focal plane
+    code modified from the EXTRACT flag in prop_end
+
+    :param wf: [sp.grid_size, sp.grid_size] array
+    :returns: array with size [new_size, new_size]
+    """
+    EXTRACT = np.zeros(2)
+    if len(new_size) > 0:
+        EXTRACT = new_size
+    else:
+        EXTRACT = np.tile(int(np.ceil(new_size)), 2)
+    smaller_wf = np.zeros((EXTRACT[1], EXTRACT[0]))
+    nx,ny = wf.shape
+    smaller_wf = wf[int(nx/2-EXTRACT[0]/2):int(nx/2+EXTRACT[0]/2), int(ny/2-EXTRACT[1]/2):int(ny/2+EXTRACT[1]/2)]
+    return smaller_wf
